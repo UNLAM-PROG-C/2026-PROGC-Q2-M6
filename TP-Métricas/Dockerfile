@@ -1,0 +1,7 @@
+FROM python:3.11-slim
+WORKDIR /app
+COPY . .
+EXPOSE 8080
+ENV PYTHONUNBUFFERED=1
+ENTRYPOINT ["python", "-u", "main.py"]
+CMD ["--duration", "300"]
