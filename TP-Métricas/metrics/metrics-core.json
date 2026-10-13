@@ -1,0 +1,56 @@
+{
+  "concurrency_evidence": {
+    "deadlock_threads_remaining": [],
+    "deadlocks_absent": true,
+    "mutual_exclusion_invariants_passed": true,
+    "race_condition_invariants_passed": true,
+    "synchronization_invariants_passed": true
+  },
+  "configuration": {
+    "assigners": 4,
+    "dashboard": true,
+    "duration_seconds": 100.0,
+    "flights": 5,
+    "planes": 3,
+    "seed": 7,
+    "speed": 10.0
+  },
+  "execution": {
+    "elapsed_seconds": 100.0209,
+    "final_invariants": true,
+    "invariant_error": null,
+    "simulated_minutes": 1000.21,
+    "threads_alive": []
+  },
+  "functionality": {
+    "assignments": 1,
+    "delays": 1,
+    "flights_by_status": {
+      "CANCELLED": 4,
+      "COMPLETED": 1
+    },
+    "flights_cancelled": 4,
+    "flights_completed": 1,
+    "flights_generated": 5,
+    "flights_pending": 0,
+    "maintenance_entries": 48,
+    "maintenance_releases": 48
+  },
+  "resources": {
+    "cpu_percent_average": 0.82,
+    "cpu_percent_max": 4.94,
+    "cpu_time_seconds": 0.83,
+    "rss_final_bytes": 19496960,
+    "rss_final_mb": 18.59,
+    "rss_initial_bytes": 23248896,
+    "rss_initial_mb": 22.17,
+    "rss_peak_bytes": 24514560,
+    "rss_peak_mb": 23.38,
+    "sample_intervals": 167,
+    "samples": 168,
+    "threads_final": 1,
+    "threads_initial": 1,
+    "threads_peak": 11,
+    "wall_seconds_sampled": 100.0203
+  }
+}
