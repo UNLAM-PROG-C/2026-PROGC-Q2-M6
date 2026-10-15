@@ -6,8 +6,10 @@ import argparse
 import logging
 import queue
 import threading
+from time import monotonic
 
 from dashboard import DashboardServer
+from metrics import ProcessMetrics, build_report, write_report
 from models import SimulationClock
 from monitor import Monitor
 from scheduler import Scheduler, SchedulerConfig, SharedState
@@ -22,6 +24,7 @@ DEFAULT_ASSIGNERS = 3
 DEFAULT_SPEED = 10.0
 DEFAULT_SEED = 42
 DEFAULT_PORT = 8080
+DEFAULT_METRICS_FILE = "metrics.json"
 CONTAINER_BIND_HOST = "0.0.0.0"
 DEFAULT_INTERVAL = 0.6
 JOIN_TIMEOUT_SECONDS = 5.0
@@ -37,6 +40,7 @@ def parse_args():
   parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
   parser.add_argument("--port", type=int, default=DEFAULT_PORT)
   parser.add_argument("--no-dashboard", action="store_true")
+  parser.add_argument("--metrics-file", default=DEFAULT_METRICS_FILE)
   return parser.parse_args()
 
 
@@ -56,7 +60,7 @@ def make_simulation(args):
   return clock, state, scheduler, stop_event, work_queue
 
 
-def start_threads(args, scheduler, state, stop_event, work_queue):
+def start_threads(args, scheduler, state, stop_event, work_queue, metrics=None):
   threads = []
   threads.append(FlightGenerator(scheduler, work_queue, stop_event,
                                  state.clock, args.flights, args.seed + 1))
@@ -66,7 +70,7 @@ def start_threads(args, scheduler, state, stop_event, work_queue):
                  for plane_id in state.planes)
   threads.append(EventWorker(scheduler, stop_event, args.seed + 2,
                              DEFAULT_INTERVAL))
-  threads.append(Monitor(scheduler, stop_event, DEFAULT_INTERVAL))
+  threads.append(Monitor(scheduler, stop_event, DEFAULT_INTERVAL, metrics))
   for thread in threads:
     thread.start()
   return threads
@@ -84,20 +88,62 @@ def stop_threads(threads, assigners, work_queue, stop_event, state):
     thread.join(timeout=JOIN_TIMEOUT_SECONDS)
   scheduler.cancel_pending("simulation ended")
   threads[-1].join(timeout=JOIN_TIMEOUT_SECONDS)
+  return [thread.name for thread in threads if thread.is_alive()]
 
 
 def run(args):
+  started_at = monotonic()
   clock, state, scheduler, stop_event, work_queue = make_simulation(args)
+  metrics = ProcessMetrics()
+  metrics.sample()
   dashboard = start_dashboard(args, state)
-  threads = start_threads(args, scheduler, state, stop_event, work_queue)
+  threads = start_threads(args, scheduler, state, stop_event, work_queue,
+                          metrics)
+  invariant_error = None
+  alive_threads = []
   try:
     stop_event.wait(args.duration)
   finally:
-    stop_threads(threads, args.assigners, work_queue, stop_event, state)
+    alive_threads = stop_threads(threads, args.assigners, work_queue,
+                                 stop_event, state)
     if dashboard:
       dashboard.close()
-    scheduler.verify_invariants()
+    try:
+      scheduler.verify_invariants()
+    except AssertionError as error:
+      invariant_error = str(error)
+      logging.error("final invariant violation: %s", error)
+    metrics.sample()
+
+  report = build_report(args, clock, state, threads, metrics,
+                        monotonic() - started_at,
+                        invariant_error is None, invariant_error)
+  report["execution"]["threads_alive"] = alive_threads
+  write_report(args.metrics_file, report)
+  _report_summary(report, args.metrics_file)
   logging.info("simulation finished at %.1f simulated minutes", clock.now())
+  if invariant_error is not None:
+    raise AssertionError(invariant_error)
+  return report
+
+
+def _report_summary(report, metrics_file):
+  functionality = report["functionality"]
+  resources = report["resources"]
+  execution = report["execution"]
+  logging.info(
+      "metrics: flights=%d completed=%d cancelled=%d pending=%d "
+      "cpu_avg=%.2f%% cpu_max=%.2f%% rss_peak=%.2f MB",
+      functionality["flights_generated"],
+      functionality["flights_completed"],
+      functionality["flights_cancelled"],
+      functionality["flights_pending"],
+      resources["cpu_percent_average"],
+      resources["cpu_percent_max"],
+      resources["rss_peak_mb"] or 0.0)
+  logging.info("metrics report: %s invariants=%s threads_alive=%s",
+               metrics_file, execution["final_invariants"],
+               execution["threads_alive"])
 
 
 def start_dashboard(args, state):

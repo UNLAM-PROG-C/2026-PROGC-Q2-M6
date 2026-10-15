@@ -26,9 +26,15 @@ class StressTests(unittest.TestCase):
     scheduler, state, stop_event, workers = self._start_stress()
     self._wait_and_stop(scheduler, state, stop_event, workers)
 
-  def _start_stress(self):
+  def test_stress_is_repeatable_across_seeds(self):
+    for seed in (23, 41, 59):
+      with self.subTest(seed=seed):
+        scheduler, state, stop_event, workers = self._start_stress(seed)
+        self._wait_and_stop(scheduler, state, stop_event, workers)
+
+  def _start_stress(self, seed=17):
     clock = SimulationClock(600.0)
-    state = SharedState(build_planes(50, 17), clock)
+    state = SharedState(build_planes(50, seed), clock)
     scheduler = Scheduler(state, SchedulerConfig())
     stop_event = threading.Event()
     for flight in self._make_flights(500):
@@ -46,15 +52,30 @@ class StressTests(unittest.TestCase):
                    for plane_id in state.planes)
     return workers
 
-  @staticmethod
-  def _wait_and_stop(scheduler, state, stop_event, workers):
+  def _wait_and_stop(self, scheduler, state, stop_event, workers):
     stop_event.wait(1.0)
     stop_event.set()
     with state.condition:
       state.condition.notify_all()
     for worker in workers:
       worker.join(timeout=3.0)
+      self.assertFalse(worker.is_alive(), worker.name)
     scheduler.verify_invariants()
+    self._assert_active_assignments_are_unique(state)
+
+  def _assert_active_assignments_are_unique(self, state):
+    active_statuses = {FlightStatus.ASSIGNED, FlightStatus.DELAYED,
+                       FlightStatus.IN_PROGRESS}
+    active_planes = [flight.assigned_plane_id
+                     for flight in state.flights.values()
+                     if flight.status in active_statuses]
+    self.assertEqual(len(active_planes), len(set(active_planes)))
+    for plane in state.planes.values():
+      if plane.active_flight_id is not None:
+        self.assertEqual(
+            sum(flight.assigned_plane_id == plane.plane_id
+                and flight.status in active_statuses
+                for flight in state.flights.values()), 1)
 
   @staticmethod
   def _make_flights(count):
