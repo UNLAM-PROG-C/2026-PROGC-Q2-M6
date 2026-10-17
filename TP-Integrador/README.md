@@ -1,6 +1,6 @@
 # Tower Defense Cooperative
 
-Sprint 2 adds the threaded TCP server, the producer-consumer game loop, the first working Godot network client and a Python bot for concurrent testing. The TCP server remains the parent process and an exec'ed child calculates deterministic wave patterns through two pipes.
+The project contains a threaded TCP server, a producer-consumer game loop, a Godot network client and a Python bot for concurrent testing. The TCP server remains the parent process and an exec'ed child calculates deterministic wave patterns through two pipes.
 
 ## Requirements
 
@@ -58,17 +58,17 @@ The parent and child exchange four-byte big-endian length-prefixed JSON messages
 
 ## Sprint 2: threaded server and clients
 
-Run the bot from another terminal after the server is running:
+Run the bot from another terminal after the server is running. From a Docker container, use `server` as the host name:
 
 ```bash
-docker compose run --rm dev python -m tools.bot_client --name bot-1 --duration 30
+docker compose run --rm dev python -m tools.bot_client --host server --port 5000 --name bot-1 --duration 30
 ```
 
 Run two bots to exercise concurrent connections and purchases:
 
 ```bash
-docker compose run --rm dev python -m tools.bot_client --name bot-1 --seed 1
-docker compose run --rm dev python -m tools.bot_client --name bot-2 --seed 2
+docker compose run --rm dev python -m tools.bot_client --host server --port 5000 --name bot-1 --seed 1
+docker compose run --rm dev python -m tools.bot_client --host server --port 5000 --name bot-2 --seed 2
 ```
 
 The Godot client can be opened on the host with:
@@ -79,15 +79,51 @@ godot --editor --path cliente_godot
 
 Run `Lobby.tscn`, enter the server host and port, and press `Connect`. The lobby logs the connection, `WELCOME`, `STATE_UPDATE` and protocol errors. It does not render gameplay yet.
 
-The Sprint 2 server uses an acceptor thread, one client thread per socket, a producer queue for enemies and a 20 Hz game-loop consumer. Locks are intentionally not used until Sprint 3. The isolated race test demonstrates why the shared gold must be protected:
+The Sprint 2 server uses an acceptor thread, one client thread per socket, a producer queue for enemies and a 20 Hz game-loop consumer. The historical race evidence is documented in `docs/sprint-2-status.md`; Sprint 3 now protects the shared state with locks.
 
 ```bash
 docker compose run --rm dev pytest -q tests/test_game_state.py -k race
 ```
 
-That test is evidence of the pre-lock state: two synchronized purchases can both pass the gold check and leave the balance negative. The live server still applies commands in the game loop, so socket handlers never mutate the state directly.
+The live server applies commands in the game loop, so socket handlers never mutate the state directly.
 
-Run the Sprint 1 tests locally with:
+## Sprint 3: synchronized state and complete protocol
+
+**Status:** implementation completed; Docker bot connectivity confirmed using the `server` service hostname. Full automated integration and Godot headless validation remain the final acceptance checks.
+
+Implemented in this sprint:
+
+- `gold_lock`, `base_hp_lock` and shared `clients_lock` (`RLock`), with no socket I/O while locks are held.
+- Atomic tower purchases, sales, enemy rewards and base damage; no negative gold or double refunds.
+- READY roster freeze for 2–4 players using `threading.Barrier(n_players)`.
+- Server validation errors for invalid towers, lanes, positions, occupied slots, insufficient gold and late players.
+- Complete server/Godot handling for `WAVE_START`, `BASE_DAMAGE`, `GAME_OVER`, `STATE_UPDATE` and `ERROR`.
+- Concurrent state, network, spawner and four-client integration tests.
+- Bot support for both random tower purchases and sales.
+
+The server protects purchases, sales and enemy rewards with `gold_lock`, base damage with `base_hp_lock`, and client registration/broadcast snapshots with a shared `clients_lock` (`RLock`). Locks are never held while sending on a socket. When at least two clients send `READY`, the current READY roster (2–4 players) is frozen and released through a `threading.Barrier`; later clients cannot join that match.
+
+The server emits `WAVE_START`, `BASE_DAMAGE`, `GAME_OVER`, `STATE_UPDATE` and `ERROR`. Godot exposes matching signals from `NetworkClient`. A tower position is occupied when its lane and exact position match an existing tower. An enemy reaching the base deals 10 damage, and base HP is clamped at zero.
+
+Run the Sprint 3 unit and integration tests with:
+
+```bash
+docker compose run --rm dev pytest -q
+```
+
+For a manual concurrency run, start the server and launch four bots from separate terminals:
+
+```bash
+docker compose up server
+docker compose run --rm dev python -m tools.bot_client --host server --port 5000 --name bot-1 --duration 300 --seed 1
+docker compose run --rm dev python -m tools.bot_client --host server --port 5000 --name bot-2 --duration 300 --seed 2
+docker compose run --rm dev python -m tools.bot_client --host server --port 5000 --name bot-3 --duration 300 --seed 3
+docker compose run --rm dev python -m tools.bot_client --host server --port 5000 --name bot-4 --duration 300 --seed 4
+```
+
+Launch the four bot commands from separate terminals, as soon as possible after starting the server, so they can join the same roster. The expected result is no negative gold, no duplicate refunds, no lost base damage and no server deadlock. The detailed checklist and validation evidence are in [`docs/sprint-3-status.md`](docs/sprint-3-status.md).
+
+Run the full suite locally when `pytest` is installed with:
 
 ```bash
 PYTHONDONTWRITEBYTECODE=1 python3 -m pytest -q

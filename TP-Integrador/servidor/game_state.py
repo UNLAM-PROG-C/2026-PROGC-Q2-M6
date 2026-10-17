@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass, field
 from typing import Callable
 
 from servidor.constants import (
   ENEMY_EXIT_POSITION,
+  ENEMY_STATS,
   ENEMY_SPEEDS,
   INITIAL_BASE_HP,
   INITIAL_GOLD,
@@ -56,7 +58,7 @@ class Enemy:
 
 @dataclass
 class GameState:
-  """Mutable game state without synchronization primitives yet."""
+  """Mutable authoritative state with independently protected resources."""
 
   gold: int = INITIAL_GOLD
   base_hp: int = INITIAL_BASE_HP
@@ -66,6 +68,12 @@ class GameState:
   purchase_hook: Callable[[], None] | None = field(
     default=None, repr=False, compare=False
   )
+  gold_lock: threading.Lock = field(
+    default_factory=threading.Lock, init=False, repr=False, compare=False
+  )
+  base_hp_lock: threading.Lock = field(
+    default_factory=threading.Lock, init=False, repr=False, compare=False
+  )
 
   def buy_tower(
     self,
@@ -73,40 +81,78 @@ class GameState:
     lane: int,
     position: tuple[float, float],
   ) -> Tower:
-    """Buy and place a tower without synchronization."""
-    self._validate_tower(tower_type, lane, position)
-    cost = TOWER_STATS[tower_type]["cost"]
-    if self.gold < cost:
-      raise ValueError("INSUFFICIENT_GOLD")
-    if self.purchase_hook is not None:
-      self.purchase_hook()
-    self.gold -= cost
-    tower = Tower(self._next_tower_id(), tower_type, lane, position)
-    self.towers.append(tower)
-    return tower
+    """Atomically validate, charge and place one tower."""
+    with self.gold_lock:
+      self._validate_tower(tower_type, lane, position)
+      if self._position_occupied(lane, position):
+        raise ValueError("POSITION_OCCUPIED")
+      cost = TOWER_STATS[tower_type]["cost"]
+      if self.gold < cost:
+        raise ValueError("INSUFFICIENT_GOLD")
+      self.gold -= cost
+      tower = Tower(self._next_tower_id(), tower_type, lane, position)
+      self.towers.append(tower)
+      return tower
 
   def sell_tower(self, tower_id: int) -> int:
-    """Sell a tower and return the refunded gold."""
-    for index, tower in enumerate(self.towers):
-      if tower.tower_id == tower_id:
-        self.towers.pop(index)
-        refund = TOWER_STATS[tower.tower_type]["cost"] // 2
-        self.gold += refund
-        return refund
-    raise ValueError("TOWER_NOT_FOUND")
+    """Atomically remove a tower and return its refund."""
+    with self.gold_lock:
+      for index, tower in enumerate(self.towers):
+        if tower.tower_id == tower_id:
+          self.towers.pop(index)
+          refund = TOWER_STATS[tower.tower_type]["cost"] // 2
+          self.gold += refund
+          return refund
+      raise ValueError("TOWER_NOT_FOUND")
+
+  def reward_enemy(self, enemy_type: str) -> int:
+    """Credit the configured reward for one defeated enemy."""
+    if not isinstance(enemy_type, str) or enemy_type not in ENEMY_STATS:
+      raise ValueError("INVALID_ENEMY_TYPE")
+    with self.gold_lock:
+      reward = ENEMY_STATS[enemy_type]["reward"]
+      self.gold += reward
+      return reward
+
+  def defeat_enemy(self, enemy_id: int) -> int:
+    """Remove one enemy and atomically credit its configured reward."""
+    with self.gold_lock:
+      for index, enemy in enumerate(self.enemies):
+        if enemy.enemy_id == enemy_id:
+          self.enemies.pop(index)
+          reward = ENEMY_STATS[enemy.enemy_type]["reward"]
+          self.gold += reward
+          return reward
+      raise ValueError("ENEMY_NOT_FOUND")
+
+  def damage_base(self, damage: int) -> int:
+    """Apply damage without losing concurrent updates and return HP left."""
+    if isinstance(damage, bool) or damage <= 0:
+      raise ValueError("INVALID_DAMAGE")
+    with self.base_hp_lock:
+      self.base_hp = max(0, self.base_hp - damage)
+      return self.base_hp
 
   def add_enemy(self, enemy: Enemy) -> None:
     """Add an enemy received from the producer queue."""
     self.enemies.append(enemy)
 
-  def advance_enemies(self, elapsed_seconds: float) -> None:
-    """Move enemies and remove those that leave the play area."""
+  def advance_enemies(self, elapsed_seconds: float) -> list[Enemy]:
+    """Move enemies and return those that reached the base."""
     for enemy in self.enemies:
       enemy.advance(elapsed_seconds)
+    reached = [enemy for enemy in self.enemies if enemy.reached_base]
     self.enemies = [enemy for enemy in self.enemies if not enemy.reached_base]
+    return reached
 
   def snapshot(self) -> dict:
     """Return a JSON-compatible copy of the current state."""
+    with self.gold_lock:
+      with self.base_hp_lock:
+        return self._snapshot_unlocked()
+
+  def _snapshot_unlocked(self) -> dict:
+    """Build a snapshot while the resource locks are already held."""
     return {
       "gold": self.gold,
       "base_hp": self.base_hp,
@@ -119,17 +165,31 @@ class GameState:
     tower_ids = [tower.tower_id for tower in self.towers]
     return max(tower_ids, default=0) + 1
 
+  def _position_occupied(
+    self,
+    lane: int,
+    position: tuple[float, float],
+  ) -> bool:
+    return any(
+      tower.lane == lane and tower.position == position
+      for tower in self.towers
+    )
+
   @staticmethod
   def _validate_tower(
     tower_type: str,
     lane: int,
     position: tuple[float, float],
   ) -> None:
-    if tower_type not in TOWER_STATS:
+    if not isinstance(tower_type, str) or tower_type not in TOWER_STATS:
       raise ValueError("INVALID_TOWER_TYPE")
-    if isinstance(lane, bool) or not 0 <= lane < LANE_COUNT:
+    if not isinstance(lane, int) or isinstance(lane, bool):
       raise ValueError("INVALID_LANE")
-    if len(position) != 2 or not all(isinstance(value, (int, float)) for value in position):
+    if not 0 <= lane < LANE_COUNT:
+      raise ValueError("INVALID_LANE")
+    if not isinstance(position, (tuple, list)) or len(position) != 2 or not all(
+      type(value) in (int, float) for value in position
+    ):
       raise ValueError("INVALID_POSITION")
 
   @staticmethod

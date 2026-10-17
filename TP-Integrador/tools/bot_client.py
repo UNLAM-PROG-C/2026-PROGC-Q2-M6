@@ -16,6 +16,7 @@ from servidor.protocol import (
   HELLO,
   PING,
   READY,
+  SELL_TOWER,
   STATE_UPDATE,
   WELCOME,
   MAX_FRAME_SIZE,
@@ -26,6 +27,7 @@ from servidor.protocol import (
 DEFAULT_DURATION_SECONDS = 10.0
 DEFAULT_BUY_INTERVAL_SECONDS = 0.25
 DEFAULT_PING_INTERVAL_SECONDS = 1.0
+DEFAULT_SELL_INTERVAL_SECONDS = 1.5
 
 
 class BotClient:
@@ -36,6 +38,8 @@ class BotClient:
     self.random = random.Random(args.seed)
     self.next_buy = 0.0
     self.next_ping = 0.0
+    self.next_sell = 0.0
+    self.tower_ids: list[int] = []
 
   def run(self) -> None:
     """Run the bot for the configured duration."""
@@ -58,6 +62,7 @@ class BotClient:
     deadline = time.monotonic() + self.args.duration
     self.next_buy = time.monotonic()
     self.next_ping = time.monotonic()
+    self.next_sell = time.monotonic() + self.args.sell_interval
     while time.monotonic() < deadline:
       self._read_available(connection)
       now = time.monotonic()
@@ -67,11 +72,17 @@ class BotClient:
       if self.args.ping_interval > 0 and now >= self.next_ping:
         connection.send(PING, {"sequence": int(now * 1000)})
         self.next_ping = now + self.args.ping_interval
+      if self.args.sell_interval > 0 and now >= self.next_sell:
+        self._sell_random_tower(connection)
+        self.next_sell = now + self.args.sell_interval
       time.sleep(0.01)
 
   def _read_available(self, connection: "BotConnection") -> None:
     for message in connection.poll():
       if message.get("type") == STATE_UPDATE:
+        self.tower_ids = [
+          tower["tower_id"] for tower in message["payload"].get("towers", [])
+        ]
         print(f"{self.args.name}: STATE_UPDATE {message['payload']}", flush=True)
 
   def _read_until(
@@ -96,6 +107,10 @@ class BotClient:
       "pos": [self.random.randrange(50, 900), self.random.randrange(80, 460)],
     }
     connection.send(BUY_TOWER, payload)
+
+  def _sell_random_tower(self, connection: "BotConnection") -> None:
+    if self.tower_ids:
+      connection.send(SELL_TOWER, {"tower_id": self.random.choice(self.tower_ids)})
 
   def _close(self, connection: "BotConnection") -> None:
     if not self.args.abrupt:
@@ -168,6 +183,11 @@ def parse_args() -> argparse.Namespace:
     "--ping-interval",
     type=float,
     default=DEFAULT_PING_INTERVAL_SECONDS,
+  )
+  parser.add_argument(
+    "--sell-interval",
+    type=float,
+    default=DEFAULT_SELL_INTERVAL_SECONDS,
   )
   parser.add_argument("--abrupt", action="store_true")
   return parser.parse_args()
