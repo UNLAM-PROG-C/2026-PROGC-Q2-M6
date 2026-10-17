@@ -1,0 +1,25 @@
+; Engine configuration file.
+; Godot 4.3 stable
+
+config_version=5
+
+[application]
+
+config/name="Tower Defense Cooperative"
+run/main_scene="res://scenes/Lobby.tscn"
+
+[autoload]
+
+NetworkClient="*res://scripts/network_client.gd"
+
+[display]
+
+window/size/viewport_width=960
+window/size/viewport_height=540
+window/size/window_width_override=960
+window/size/window_height_override=540
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"

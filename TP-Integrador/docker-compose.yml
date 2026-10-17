@@ -1,0 +1,42 @@
+services:
+  dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+    environment:
+      PYTHONPATH: /workspace
+      PYTHONUNBUFFERED: "1"
+    command: bash
+    stdin_open: true
+    tty: true
+
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+    environment:
+      PYTHONPATH: /workspace
+      PYTHONUNBUFFERED: "1"
+      SERVER_HOST: ${SERVER_HOST:-0.0.0.0}
+      SERVER_PORT: ${SERVER_PORT:-5000}
+    command: python -m servidor.main
+    ports:
+      - "${SERVER_PORT:-5000}:${SERVER_PORT:-5000}"
+
+  godot:
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: Dockerfile.godot
+      args:
+        GODOT_VERSION: ${GODOT_VERSION:-4.3}
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+    command: godot --headless --path /workspace/cliente_godot --editor --quit
