@@ -1,0 +1,8 @@
+ea4bc82a6ad023ab7ee23ee620429895
+::res://::1791852614
+::res://scenes/::1791835030
+Lobby.tscn::PackedScene::-1::1791835023::0::1::::<><>::res://scripts/lobby.gd
+::res://scripts/::1791835030
+lobby.gd::GDScript::-1::1791835023::0::1::::<>Control<>::
+network_client.gd::GDScript::-1::1791835023::0::1::::<>Node<>::
+protocol_constants.gd::GDScript::-1::1791835023::0::1::::ProtocolConstants<>Node<>::
