@@ -7,6 +7,9 @@ signal disconnected_from_server
 signal message_received(message: Dictionary)
 signal welcome_received(payload: Dictionary)
 signal state_update_received(payload: Dictionary)
+signal wave_start_received(payload: Dictionary)
+signal base_damage_received(payload: Dictionary)
+signal game_over_received(payload: Dictionary)
 signal error_received(payload: Dictionary)
 
 var server_host: String = "127.0.0.1"
@@ -105,13 +108,26 @@ func _dispatch_message(body: PackedByteArray) -> void:
   if not message is Dictionary or not message.has("type"):
     error_received.emit({"code": "INVALID_MESSAGE", "message": "Invalid server message."})
     return
-  var payload: Dictionary = message.get("payload", {})
+  if not message.has("payload") or not message["payload"] is Dictionary:
+    error_received.emit({"code": "INVALID_MESSAGE", "message": "Invalid server payload."})
+    return
+  var message_type := StringName(message["type"])
+  if not ProtocolConstants.SERVER_MESSAGE_TYPES.has(message_type):
+    error_received.emit({"code": "UNKNOWN_MESSAGE", "message": "Unknown server message."})
+    return
+  var payload: Dictionary = message["payload"]
   message_received.emit(message)
-  match String(message["type"]):
+  match String(message_type):
     String(ProtocolConstants.WELCOME):
       welcome_received.emit(payload)
     String(ProtocolConstants.STATE_UPDATE):
       state_update_received.emit(payload)
+    String(ProtocolConstants.WAVE_START):
+      wave_start_received.emit(payload)
+    String(ProtocolConstants.BASE_DAMAGE):
+      base_damage_received.emit(payload)
+    String(ProtocolConstants.GAME_OVER):
+      game_over_received.emit(payload)
     String(ProtocolConstants.ERROR):
       error_received.emit(payload)
 

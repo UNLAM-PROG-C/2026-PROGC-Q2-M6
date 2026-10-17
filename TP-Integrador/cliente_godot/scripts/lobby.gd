@@ -15,6 +15,9 @@ func _ready() -> void:
   NetworkClient.disconnected_from_server.connect(_on_disconnected)
   NetworkClient.welcome_received.connect(_on_welcome)
   NetworkClient.state_update_received.connect(_on_state_update)
+  NetworkClient.wave_start_received.connect(_on_wave_start)
+  NetworkClient.base_damage_received.connect(_on_base_damage)
+  NetworkClient.game_over_received.connect(_on_game_over)
   NetworkClient.error_received.connect(_on_error)
 
 
@@ -54,6 +57,20 @@ func _on_state_update(payload: Dictionary) -> void:
     payload.get("current_wave", 0),
     payload.get("gold", 0),
     payload.get("base_hp", 0),
+  ]
+
+
+func _on_wave_start(payload: Dictionary) -> void:
+  status_label.text = "Wave %s started" % payload.get("wave", "?")
+
+
+func _on_base_damage(payload: Dictionary) -> void:
+  status_label.text = "Base damaged: %s HP left" % payload.get("base_hp", "?")
+
+
+func _on_game_over(payload: Dictionary) -> void:
+  status_label.text = "%s: %s" % [
+    payload.get("result", "GAME OVER"), payload.get("reason", "")
   ]
 
 

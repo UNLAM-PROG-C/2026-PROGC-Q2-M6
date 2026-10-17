@@ -4,6 +4,7 @@ import queue
 import threading
 
 from servidor.game_state import Enemy
+from servidor.constants import ENEMY_STATS
 from servidor.spawner import EnemySpawner, WaveStart
 
 
@@ -34,3 +35,4 @@ def test_spawner_enqueues_wave_and_enemy(monkeypatch) -> None:
   assert isinstance(first, WaveStart)
   assert isinstance(second, Enemy)
   assert second.enemy_type == "GOBLIN"
+  assert second.health == ENEMY_STATS["GOBLIN"]["health"]

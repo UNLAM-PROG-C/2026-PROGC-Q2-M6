@@ -59,6 +59,7 @@ class GameServer:
     self.address = self.listener.getsockname()
     self.command_queue: queue.Queue[ClientCommand] = queue.Queue()
     self.stop_event = threading.Event()
+    self.clients_lock = threading.RLock()
     self._next_player_id = 1
     self._connections: list[ClientConnection] = []
     self._client_threads: list[threading.Thread] = []
@@ -85,7 +86,9 @@ class GameServer:
       self.listener.close()
     except OSError:
       pass
-    for connection in tuple(self._connections):
+    with self.clients_lock:
+      connections = tuple(self._connections)
+    for connection in connections:
       self.close_connection(connection)
 
   def join(self, timeout: float = 2.0) -> None:
@@ -113,9 +116,19 @@ class GameServer:
     payload: dict,
     clients: dict[int, ClientConnection],
   ) -> None:
-    """Send one message to the current game-loop client snapshot."""
-    for client in tuple(clients.values()):
+    """Send to a snapshot so no socket blocks while clients are locked."""
+    with self.clients_lock:
+      recipients = tuple(clients.values())
+    for client in recipients:
       self.send(client, message_type, payload)
+
+  def unregister(self, client: ClientConnection) -> None:
+    """Remove a socket from the server lifecycle registry."""
+    with self.clients_lock:
+      self._connections = [
+        connection for connection in self._connections
+        if connection.player_id != client.player_id
+      ]
 
   def close_connection(self, client: ClientConnection) -> None:
     """Close one client socket without raising during shutdown."""
@@ -146,7 +159,8 @@ class GameServer:
     client_socket.settimeout(CLIENT_SOCKET_TIMEOUT_SECONDS)
     client = ClientConnection(self._next_player_id, client_socket, address)
     self._next_player_id += 1
-    self._connections.append(client)
+    with self.clients_lock:
+      self._connections.append(client)
     thread = threading.Thread(
       target=self._client_loop,
       args=(client,),
