@@ -1,0 +1,85 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/hud.gd" id="1_hud"]
+
+[node name="Hud" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("1_hud")
+
+[node name="TopBar" type="Panel" parent="."]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 90.0
+grow_horizontal = 2
+mouse_filter = 2
+
+[node name="GoldLabel" type="Label" parent="TopBar"]
+offset_left = 20.0
+offset_top = 28.0
+offset_right = 190.0
+offset_bottom = 62.0
+theme_override_font_sizes/font_size = 22
+text = "ORO: 200"
+
+[node name="BaseLabel" type="Label" parent="TopBar"]
+offset_left = 205.0
+offset_top = 28.0
+offset_right = 390.0
+offset_bottom = 62.0
+theme_override_font_sizes/font_size = 22
+text = "BASE: 100/100"
+
+[node name="WaveLabel" type="Label" parent="TopBar"]
+offset_left = 410.0
+offset_top = 28.0
+offset_right = 600.0
+offset_bottom = 62.0
+theme_override_font_sizes/font_size = 22
+text = "OLEADA: 0/10"
+
+[node name="TowerPanel" type="Panel" parent="."]
+offset_left = 610.0
+offset_top = 10.0
+offset_right = 950.0
+offset_bottom = 80.0
+mouse_filter = 1
+
+[node name="MopperButton" type="Button" parent="TowerPanel"]
+offset_left = 8.0
+offset_top = 12.0
+offset_right = 112.0
+offset_bottom = 58.0
+text = "Mopeador\n$50"
+
+[node name="StockButton" type="Button" parent="TowerPanel"]
+offset_left = 118.0
+offset_top = 12.0
+offset_right = 222.0
+offset_bottom = 58.0
+text = "Repositor\n$120"
+
+[node name="AudioButton" type="Button" parent="TowerPanel"]
+offset_left = 228.0
+offset_top = 12.0
+offset_right = 332.0
+offset_bottom = 58.0
+text = "Paging\n$150"
+
+[node name="ErrorLabel" type="Label" parent="."]
+offset_left = 180.0
+offset_top = 472.0
+offset_right = 780.0
+offset_bottom = 512.0
+theme_override_colors/font_color = Color(1, 0.86, 0.45, 1)
+theme_override_font_sizes/font_size = 20
+horizontal_alignment = 1
+text = "Error de juego"
+mouse_filter = 2
+

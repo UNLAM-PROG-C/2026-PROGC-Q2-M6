@@ -8,13 +8,13 @@ from dataclasses import dataclass
 from typing import Any
 
 from servidor.constants import (
-  ENEMY_STATS,
   LANE_COUNT,
   SPAWN_INTERVAL_SECONDS,
   TOTAL_WAVES,
 )
 from servidor.game_state import Enemy
 from servidor.process_manager import ChildProcess, request_wave, send_stats_update
+from servidor.patterns.enemy_factory import create_enemy
 
 
 @dataclass
@@ -94,5 +94,4 @@ class EnemySpawner:
   @staticmethod
   def _create_enemy(enemy_id: int, enemy_type: str) -> Enemy:
     lane = (enemy_id - 1) % LANE_COUNT
-    health = ENEMY_STATS[enemy_type]["health"]
-    return Enemy(enemy_id, enemy_type, health, lane, (0.0, float(lane)))
+    return create_enemy(enemy_id, enemy_type, lane)

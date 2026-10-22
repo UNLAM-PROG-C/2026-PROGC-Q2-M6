@@ -1,4 +1,4 @@
-"""Small TCP bot for Sprint 2 integration and concurrency tests."""
+"""Small TCP bot for integration and concurrency tests."""
 
 from __future__ import annotations
 

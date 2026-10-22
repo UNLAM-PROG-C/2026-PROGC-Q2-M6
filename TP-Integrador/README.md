@@ -77,7 +77,7 @@ The Godot client can be opened on the host with:
 godot --editor --path cliente_godot
 ```
 
-Run `Lobby.tscn`, enter the server host and port, and press `Connect`. The lobby logs the connection, `WELCOME`, `STATE_UPDATE` and protocol errors. It does not render gameplay yet.
+Run `Main.tscn`, enter the server host and port, and press `Connect`. After two clients send `READY`, the lobby changes to the supermarket board and renders the authoritative state.
 
 The Sprint 2 server uses an acceptor thread, one client thread per socket, a producer queue for enemies and a 20 Hz game-loop consumer. The historical race evidence is documented in `docs/sprint-2-status.md`; Sprint 3 now protects the shared state with locks.
 
@@ -142,6 +142,25 @@ godot --editor --path cliente_godot
 ```
 
 The host editor is intentionally outside Docker because the Sprint 0 setup does not configure graphical display forwarding. The project itself is shared through the repository mount and is validated with the Godot container.
+
+## Sprint 4: playable supermarket defense
+
+The current client uses the supermarket concept from section 3.7 of `plan.md`:
+
+- Towers: `MOPPER`, `STOCK_REPLENISHER` and `AUDIO_TOWER`.
+- Enemies: `DISCOUNT_CHILD`, `SHOPPING_GRANDMA`, `SKATEBOARD_CHILD`, `ARMORED_GRANDMA` and `GOLD_CART_BOSS`.
+- Tower attacks, enemy health, rewards, movement and game-over conditions are resolved by the server.
+- Godot renders three lanes, the HUD, character sprites, puddle/sonic effects, errors and victory/defeat overlays.
+
+Controls:
+
+1. Select a tower from the top-right buttons.
+2. Click a lane position to send `BUY_TOWER`.
+3. Click an existing tower to send `SELL_TOWER` and receive half its cost back.
+
+The character artwork is original project artwork stored in `cliente_godot/assets/characters/`; the attached images are visual references only.
+
+For a complete local match, start the server and open `cliente_godot/scenes/Main.tscn` from two Godot clients. Enter the server address, press `Connect` in both clients, select towers and defend all ten waves.
 
 ## Protocol
 

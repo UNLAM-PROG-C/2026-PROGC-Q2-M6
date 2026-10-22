@@ -23,34 +23,59 @@ ENEMY_SPEEDS = {
 WORKER_MODULE = "servidor.wave_worker"
 
 WAVE_PATTERNS = {
-  1: (("GOBLIN", 5),),
-  2: (("GOBLIN", 8),),
-  3: (("GOBLIN", 6), ("ORC", 2)),
-  4: (("GOBLIN", 8), ("RUNNER", 3)),
-  5: (("GOBLIN", 10), ("ORC", 4), ("RUNNER", 3)),
-  6: (("GOBLIN", 12), ("ORC", 5), ("RUNNER", 4)),
-  7: (("GOBLIN", 10), ("ORC", 4), ("RUNNER", 2), ("TROLL", 1)),
-  8: (("GOBLIN", 12), ("ORC", 6), ("RUNNER", 4), ("TROLL", 2)),
-  9: (("GOBLIN", 15), ("ORC", 8), ("RUNNER", 5), ("TROLL", 3)),
+  1: (("DISCOUNT_CHILD", 5),),
+  2: (("DISCOUNT_CHILD", 8),),
+  3: (("DISCOUNT_CHILD", 6), ("SHOPPING_GRANDMA", 2)),
+  4: (("DISCOUNT_CHILD", 8), ("SKATEBOARD_CHILD", 3)),
+  5: (("DISCOUNT_CHILD", 10), ("SHOPPING_GRANDMA", 4),
+      ("SKATEBOARD_CHILD", 3)),
+  6: (("DISCOUNT_CHILD", 12), ("SHOPPING_GRANDMA", 5),
+      ("SKATEBOARD_CHILD", 4)),
+  7: (("DISCOUNT_CHILD", 10), ("SHOPPING_GRANDMA", 4),
+      ("SKATEBOARD_CHILD", 2), ("ARMORED_GRANDMA", 1)),
+  8: (("DISCOUNT_CHILD", 12), ("SHOPPING_GRANDMA", 6),
+      ("SKATEBOARD_CHILD", 4), ("ARMORED_GRANDMA", 2)),
+  9: (("DISCOUNT_CHILD", 15), ("SHOPPING_GRANDMA", 8),
+      ("SKATEBOARD_CHILD", 5), ("ARMORED_GRANDMA", 3)),
   10: (
-    ("GOBLIN", 20),
-    ("ORC", 10),
-    ("RUNNER", 6),
-    ("TROLL", 4),
-    ("BOSS", 1),
+    ("DISCOUNT_CHILD", 20),
+    ("SHOPPING_GRANDMA", 10),
+    ("SKATEBOARD_CHILD", 6),
+    ("ARMORED_GRANDMA", 4),
+    ("GOLD_CART_BOSS", 1),
   ),
 }
 
 TOWER_STATS = {
-  "ARCHER": {"cost": 50, "damage": 10, "cooldown_seconds": 1.0},
-  "CANNON": {"cost": 120, "damage": 40, "cooldown_seconds": 3.0},
-  "MAGE": {"cost": 150, "damage": 15, "cooldown_seconds": 2.0},
+  "MOPPER": {
+    "cost": 50, "damage": 10, "cooldown_seconds": 1.0,
+    "special": "PUDDLE",
+  },
+  "STOCK_REPLENISHER": {
+    "cost": 120, "damage": 40, "cooldown_seconds": 3.0,
+    "special": "LINE_AREA",
+  },
+  "AUDIO_TOWER": {
+    "cost": 150, "damage": 15, "cooldown_seconds": 2.0,
+    "special": "SONIC_STUN",
+    "stun_seconds": 0.5,
+  },
 }
 
 ENEMY_STATS = {
-  "GOBLIN": {"health": 30, "speed": "NORMAL", "reward": 5, "from_wave": 1},
-  "ORC": {"health": 80, "speed": "SLOW", "reward": 10, "from_wave": 3},
-  "RUNNER": {"health": 20, "speed": "FAST", "reward": 8, "from_wave": 4},
-  "TROLL": {"health": 150, "speed": "SLOW", "reward": 20, "from_wave": 7},
-  "BOSS": {"health": 500, "speed": "NORMAL", "reward": 100, "from_wave": 10},
+  "DISCOUNT_CHILD": {
+    "health": 30, "speed": "NORMAL", "reward": 5, "from_wave": 1,
+  },
+  "SHOPPING_GRANDMA": {
+    "health": 80, "speed": "SLOW", "reward": 10, "from_wave": 3,
+  },
+  "SKATEBOARD_CHILD": {
+    "health": 20, "speed": "FAST", "reward": 8, "from_wave": 4,
+  },
+  "ARMORED_GRANDMA": {
+    "health": 150, "speed": "SLOW", "reward": 20, "from_wave": 7,
+  },
+  "GOLD_CART_BOSS": {
+    "health": 500, "speed": "NORMAL", "reward": 100, "from_wave": 10,
+  },
 }

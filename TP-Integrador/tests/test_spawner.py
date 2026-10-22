@@ -15,7 +15,10 @@ def test_spawner_enqueues_wave_and_enemy(monkeypatch) -> None:
   stop_event = threading.Event()
   monkeypatch.setattr(
     "servidor.spawner.request_wave",
-    lambda _worker, _wave: {"wave": 1, "enemies": [{"type": "GOBLIN", "count": 1}]},
+    lambda _worker, _wave: {
+      "wave": 1,
+      "enemies": [{"type": "DISCOUNT_CHILD", "count": 1}],
+    },
   )
   spawner = EnemySpawner(
     enemy_queue,
@@ -34,5 +37,5 @@ def test_spawner_enqueues_wave_and_enemy(monkeypatch) -> None:
 
   assert isinstance(first, WaveStart)
   assert isinstance(second, Enemy)
-  assert second.enemy_type == "GOBLIN"
-  assert second.health == ENEMY_STATS["GOBLIN"]["health"]
+  assert second.enemy_type == "DISCOUNT_CHILD"
+  assert second.health == ENEMY_STATS["DISCOUNT_CHILD"]["health"]

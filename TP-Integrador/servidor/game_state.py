@@ -25,6 +25,7 @@ class Tower:
   tower_type: str
   lane: int
   position: tuple[float, float]
+  cooldown_remaining: float = 0.0
 
 
 @dataclass
@@ -36,14 +37,14 @@ class Enemy:
   health: int
   lane: int
   position: tuple[float, float]
+  stun_remaining: float = 0.0
 
   def advance(self, elapsed_seconds: float) -> None:
     """Move the enemy according to its configured speed."""
-    speed_name = "NORMAL"
-    if self.enemy_type in ("ORC", "TROLL"):
-      speed_name = "SLOW"
-    if self.enemy_type == "RUNNER":
-      speed_name = "FAST"
+    if self.stun_remaining > 0:
+      self.stun_remaining = max(0.0, self.stun_remaining - elapsed_seconds)
+      return
+    speed_name = ENEMY_STATS[self.enemy_type]["speed"]
     speed = ENEMY_SPEEDS[speed_name]
     self.position = (
       self.position[0] + speed * elapsed_seconds,
@@ -90,7 +91,9 @@ class GameState:
       if self.gold < cost:
         raise ValueError("INSUFFICIENT_GOLD")
       self.gold -= cost
-      tower = Tower(self._next_tower_id(), tower_type, lane, position)
+      from servidor.patterns.tower_factory import create_tower
+
+      tower = create_tower(self._next_tower_id(), tower_type, lane, position)
       self.towers.append(tower)
       return tower
 
@@ -132,6 +135,17 @@ class GameState:
     with self.base_hp_lock:
       self.base_hp = max(0, self.base_hp - damage)
       return self.base_hp
+
+  def resolve_attacks(self, elapsed_seconds: float) -> list[int]:
+    """Resolve every tower attack and return defeated enemy IDs."""
+    from servidor.patterns.attack_strategy import create_attack_strategy
+
+    defeated: list[int] = []
+    for tower in self.towers:
+      strategy = create_attack_strategy(tower.tower_type)
+      effects = strategy.attack(tower, self.enemies, elapsed_seconds)
+      defeated.extend(self._apply_attack_effects(effects))
+    return defeated
 
   def add_enemy(self, enemy: Enemy) -> None:
     """Add an enemy received from the producer queue."""
@@ -209,4 +223,19 @@ class GameState:
       "health": enemy.health,
       "lane": enemy.lane,
       "pos": list(enemy.position),
+      "stunned": enemy.stun_remaining > 0,
     }
+
+  def _apply_attack_effects(self, effects: list) -> list[int]:
+    defeated: list[int] = []
+    for effect in effects:
+      for enemy in tuple(self.enemies):
+        if enemy.enemy_id not in effect.target_ids:
+          continue
+        enemy.health -= effect.damage
+        enemy.stun_remaining = max(enemy.stun_remaining, effect.stun_seconds)
+        if enemy.health <= 0:
+          enemy_id = enemy.enemy_id
+          self.defeat_enemy(enemy_id)
+          defeated.append(enemy_id)
+    return defeated

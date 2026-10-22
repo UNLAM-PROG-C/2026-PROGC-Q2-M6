@@ -1,4 +1,4 @@
-"""Authoritative 20 Hz game loop for Sprint 2."""
+"""Authoritative 20 Hz game loop for the cooperative match."""
 
 from __future__ import annotations
 
@@ -39,6 +39,12 @@ from servidor.protocol import (
   HELLO,
 )
 from servidor.spawner import WaveStart
+from servidor.patterns.event_publisher import (
+  BASE_DAMAGED,
+  ENEMY_KILLED,
+  EventPublisher,
+  WAVE_CLEARED,
+)
 
 
 class GameLoop:
@@ -64,6 +70,9 @@ class GameLoop:
     self.game_over_sent = False
     self.ready_event = threading.Event()
     self.wave_complete_event = threading.Event()
+    self.events = EventPublisher()
+    self.enemies_defeated = 0
+    self._subscribe_to_events()
     self.thread = threading.Thread(
       target=self.run,
       name="game_loop_thread",
@@ -84,6 +93,7 @@ class GameLoop:
     while not self.stop_event.is_set():
       self._drain_commands()
       self._drain_enemies()
+      self._resolve_attacks()
       reached = self.state.advance_enemies(GAME_TICK_SECONDS)
       self._handle_reached_enemies(reached)
       self._complete_wave_if_idle()
@@ -98,6 +108,10 @@ class GameLoop:
       except queue.Empty:
         return
       self._handle_command(command)
+
+  def _resolve_attacks(self) -> None:
+    for enemy_id in self.state.resolve_attacks(GAME_TICK_SECONDS):
+      self.events.publish(ENEMY_KILLED, {"enemy_id": enemy_id})
 
   def _handle_command(self, command: ClientCommand) -> None:
     if command.kind == CONNECT:
@@ -190,15 +204,18 @@ class GameLoop:
   def _handle_reached_enemies(self, enemies: list) -> None:
     for enemy in enemies:
       base_hp = self.state.damage_base(BASE_DAMAGE_PER_ENEMY)
-      self.server.broadcast(BASE_DAMAGE, {
+      self.events.publish(BASE_DAMAGED, {
         "enemy_id": enemy.enemy_id,
         "enemy_type": enemy.enemy_type,
         "damage": BASE_DAMAGE_PER_ENEMY,
         "base_hp": base_hp,
-      }, self.clients)
+      })
       if base_hp <= 0:
         self._finish_game("DEFEAT", "BASE_DESTROYED")
         return
+
+  def _broadcast_base_damage(self, payload: dict) -> None:
+    self.server.broadcast(BASE_DAMAGE, payload, self.clients)
 
   def _broadcast_state(self) -> None:
     if self.clients:
@@ -209,7 +226,18 @@ class GameLoop:
       if self.state.current_wave >= TOTAL_WAVES:
         self._finish_game("VICTORY", "ALL_WAVES_CLEARED")
       else:
-        self.wave_complete_event.set()
+        self.events.publish(WAVE_CLEARED, {"wave": self.state.current_wave})
+
+  def _record_enemy_killed(self, _payload: dict) -> None:
+    self.enemies_defeated += 1
+
+  def _mark_wave_cleared(self, _payload: dict) -> None:
+    self.wave_complete_event.set()
+
+  def _subscribe_to_events(self) -> None:
+    self.events.subscribe(ENEMY_KILLED, self._record_enemy_killed)
+    self.events.subscribe(BASE_DAMAGED, self._broadcast_base_damage)
+    self.events.subscribe(WAVE_CLEARED, self._mark_wave_cleared)
 
   def _remove_client(self, client: ClientConnection) -> None:
     with self.server.clients_lock:
