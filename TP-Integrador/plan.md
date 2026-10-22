@@ -124,7 +124,7 @@ tower-defense/
 Framing: `[4 bytes: longitud big-endian][JSON UTF-8]`. Todo mensaje tiene `type` y `payload`.
 
 ```json
-{"type": "BUY_TOWER", "payload": {"lane": 2, "tower_type": "MAGE", "pos": [340, 220]}}
+{"type": "BUY_TOWER", "payload": {"lane": 2, "tower_type": "AUDIO_TOWER", "pos": [340, 220]}}
 ```
 
 **Cliente → Servidor:** `HELLO`, `READY`, `BUY_TOWER`, `SELL_TOWER`, `PING`
@@ -147,20 +147,19 @@ Los nombres de mensaje viven en `protocol.py` y `protocol_constants.gd`; deben m
 
 | Torre | Costo | Daño | Cadencia | Especial |
 |---|---|---|---|---|
-| Arquero | 50 | 10 | 1/seg | — |
-| Cañón | 120 | 40 | 1/3 seg | Daño en área chico |
-| Mago | 150 | 15 | 1/2 seg | Ignora armadura |
+| Personal de limpieza (Mopeador) | 50 | 10 | 1/seg | Genera charcos resbalosos y daño rápido por segundo |
+| Repositor de stock (Zorra de carga) | 120 | 40 | 1/3 seg | Barre en línea recta y genera daño pesado en área |
+| Torre de audio / Megáfono | 150 | 15 | 1/2 seg | Emite ondas de choque sónicas con el altavoz sonando en loop que aturden e ignoran defensas |
 
 | Enemigo | Vida | Velocidad | Recompensa | Desde oleada |
 |---|---|---|---|---|
-| Goblin | 30 | Normal | 5 | 1 |
-| Orco | 80 | Lenta | 10 | 3 |
-| Corredor | 20 | Rápida | 8 | 4 |
-| Troll | 150 | Lenta | 20 | 7 |
-| Jefe | 500 | Normal | 100 | 10 |
+| Niño | 30 | Normal | 5 | 1 |
+| Abuela del supermercado (Carrito de COTO) | 80 | Lenta | 10 | 3 |
+| Niño en monopatín rápido | 20 | Rápida | 8 | 4 |
+| Abuela blindada | 150 | Lenta | 20 | 7 |
+| Jefe con carro de oro | 500 | Normal | 100 | 10 |
 
 Oro inicial 200 · Vida de base inicial 100 · Victoria: superar la oleada 10 · Derrota: vida de base en 0.
-
 ---
 
 ## 4. Estándar de código (obligatorio de la cátedra)

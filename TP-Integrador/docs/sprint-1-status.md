@@ -36,7 +36,7 @@ La salida esperada contiene líneas equivalentes a:
 Server listening on 0.0.0.0:5000
 Parent PID: <pid>
 Child PID: <pid>
-Wave 1 pattern: {'wave': 1, 'enemies': [{'type': 'GOBLIN', 'count': 5}]}
+Wave 1 pattern: {'wave': 1, 'enemies': [{'type': 'DISCOUNT_CHILD', 'count': 5}]}
 ```
 
 Al detener el servicio con `Ctrl+C` o `docker compose down`, la salida debe confirmar:

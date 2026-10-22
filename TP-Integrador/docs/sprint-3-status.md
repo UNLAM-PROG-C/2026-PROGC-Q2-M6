@@ -42,7 +42,7 @@ Cuando un enemigo llega a la base, el servidor resta 10 HP y envía:
   "type": "BASE_DAMAGE",
   "payload": {
     "enemy_id": 1,
-    "enemy_type": "GOBLIN",
+    "enemy_type": "DISCOUNT_CHILD",
     "damage": 10,
     "base_hp": 90
   }

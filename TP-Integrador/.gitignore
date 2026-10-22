@@ -1,0 +1,13 @@
+# macOS and editor metadata
+.DS_Store
+
+# Python caches and test artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+
+# Godot generated imports, script UIDs and editor state
+cliente_godot/.godot/*
+cliente_godot/assets/**/*.import
+cliente_godot/scripts/**/*.uid
