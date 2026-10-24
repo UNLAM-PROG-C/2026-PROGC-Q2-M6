@@ -23,6 +23,14 @@ func update_state(payload: Dictionary) -> void:
 
 
 func show_error(message: String) -> void:
+	var friendly_messages := {
+		"INSUFFICIENT_GOLD": "No hay suficiente dinero para comprar esa torre.",
+		"The team does not have enough gold": "No hay suficiente dinero para comprar esa torre.",
+		"POSITION_OCCUPIED": "Ese lugar ya está ocupado.",
+		"That tower position is occupied": "Ese lugar ya está ocupado.",
+		"INVALID_POSITION": "Elegí una posición válida dentro del tablero.",
+	}
+	message = friendly_messages.get(message, message)
 	error_label.text = message
 	error_label.visible = true
 	get_tree().create_timer(2.5).timeout.connect(_hide_error)

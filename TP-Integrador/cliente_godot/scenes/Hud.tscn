@@ -72,14 +72,25 @@ offset_right = 332.0
 offset_bottom = 58.0
 text = "Paging\n$150"
 
-[node name="ErrorLabel" type="Label" parent="."]
-offset_left = 180.0
-offset_top = 472.0
-offset_right = 780.0
-offset_bottom = 512.0
-theme_override_colors/font_color = Color(1, 0.86, 0.45, 1)
-theme_override_font_sizes/font_size = 20
-horizontal_alignment = 1
-text = "Error de juego"
+[node name="ErrorBackground" type="ColorRect" parent="."]
+offset_left = 100.0
+offset_top = 448.0
+offset_right = 860.0
+offset_bottom = 526.0
+color = Color(0.12, 0.08, 0.04, 0.92)
 mouse_filter = 2
 
+[node name="ErrorLabel" type="Label" parent="."]
+offset_left = 120.0
+offset_top = 454.0
+offset_right = 840.0
+offset_bottom = 520.0
+theme_override_colors/font_color = Color(1, 0.92, 0.55, 1)
+theme_override_colors/font_outline_color = Color(0.12, 0.08, 0.04, 1)
+theme_override_constants/outline_size = 8
+theme_override_font_sizes/font_size = 22
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 2
+text = "Error de juego"
+mouse_filter = 2

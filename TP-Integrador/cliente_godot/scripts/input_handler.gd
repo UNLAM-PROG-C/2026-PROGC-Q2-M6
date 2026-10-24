@@ -17,17 +17,19 @@ func update_towers(next_towers: Array) -> void:
 		towers.append(tower)
 
 
-func _gui_input(event: InputEvent) -> void:
+func _input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed:
 		_handle_click(event)
 
 
 func _handle_click(event: InputEventMouseButton) -> void:
+	if event.button_index != MOUSE_BUTTON_LEFT:
+		return
 	var tower_id := _tower_at(event.position)
 	if tower_id >= 0:
 		NetworkClient.send_message(ProtocolConstants.SELL_TOWER, {"tower_id": tower_id})
 		return
-	if event.button_index != MOUSE_BUTTON_LEFT or selected_tower.is_empty():
+	if selected_tower.is_empty():
 		return
 	if not _inside_board(event.position):
 		placement_rejected.emit("Seleccioná un carril válido.")

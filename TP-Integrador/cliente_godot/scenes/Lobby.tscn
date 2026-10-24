@@ -67,6 +67,10 @@ placeholder_text = "5000"
 layout_mode = 2
 text = "Connect"
 
+[node name="StartButton" type="Button" parent="Panel/MarginContainer/Content"]
+layout_mode = 2
+text = "Iniciar partida"
+
 [node name="StatusLabel" type="Label" parent="Panel/MarginContainer/Content"]
 layout_mode = 2
 text = "Not connected"

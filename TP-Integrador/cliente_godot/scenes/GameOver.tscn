@@ -50,3 +50,6 @@ layout_mode = 2
 text = "ALL_WAVES_CLEARED"
 horizontal_alignment = 1
 
+[node name="PlayAgainButton" type="Button" parent="Panel/Content"]
+layout_mode = 2
+text = "Jugar nuevamente"
