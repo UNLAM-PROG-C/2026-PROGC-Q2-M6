@@ -163,6 +163,8 @@ class GameLoop:
     })
 
   def _handle_ready(self, client: ClientConnection, _payload: dict) -> None:
+    if self.game_over_sent:
+      self._reset_match()
     if self.roster_locked and client.player_id not in self.participants:
       raise ValueError("GAME_ALREADY_STARTED")
     self.ready_players.add(client.player_id)
@@ -222,7 +224,12 @@ class GameLoop:
       self.server.broadcast(STATE_UPDATE, self.state.snapshot(), self.clients)
 
   def _complete_wave_if_idle(self) -> None:
-    if self.state.current_wave and not self.state.enemies and self.enemy_queue.empty():
+    if (
+      not self.game_over_sent
+      and self.state.current_wave
+      and not self.state.enemies
+      and self.enemy_queue.empty()
+    ):
       if self.state.current_wave >= TOTAL_WAVES:
         self._finish_game("VICTORY", "ALL_WAVES_CLEARED")
       else:
@@ -245,6 +252,7 @@ class GameLoop:
       self.ready_players.discard(client.player_id)
     self.server.unregister(client)
     self.server.close_connection(client)
+    self._broadcast_lobby_status()
 
   def _add_client(self, client: ClientConnection) -> None:
     with self.server.clients_lock:
@@ -256,6 +264,28 @@ class GameLoop:
     if reject:
       self._send_error(client, "MAX_PLAYERS", "The game is full")
       self.server.close_connection(client)
+      return
+    self._broadcast_lobby_status()
+
+  def _broadcast_lobby_status(self) -> None:
+    with self.server.clients_lock:
+      clients = tuple(self.clients.values())
+    for client in clients:
+      self.server.send(client, WELCOME, {
+        "player_id": client.player_id,
+        "players": len(clients),
+        "min_players": MIN_PLAYERS,
+        "game_started": self.roster_locked,
+      })
+
+  def _reset_match(self) -> None:
+    self.state.reset_match()
+    self.game_over_sent = False
+    self.roster_locked = False
+    self.participants.clear()
+    self.ready_players.clear()
+    self.start_barrier = None
+    self.ready_event.clear()
 
   def _lock_roster(self) -> None:
     if self.roster_locked:
@@ -300,7 +330,9 @@ class GameLoop:
       "reason": reason,
       "wave": self.state.current_wave,
     }, self.clients)
-    self.stop_event.set()
+    self.ready_event.clear()
+    if not self.thread.is_alive():
+      self.stop_event.set()
 
   def _send_error(self, client: ClientConnection, code: str, message: str) -> None:
     self.server.send(client, ERROR, {"code": code, "message": message})

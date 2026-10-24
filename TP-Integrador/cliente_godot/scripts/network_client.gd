@@ -75,7 +75,6 @@ func _handle_connected() -> void:
 	connected_to_server.emit()
 	_hello_sent = true
 	send_message(ProtocolConstants.HELLO, {"name": "godot-player"})
-	send_message(ProtocolConstants.READY, {})
 
 
 func _read_available_data() -> void:
