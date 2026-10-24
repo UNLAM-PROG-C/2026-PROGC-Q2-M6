@@ -1,5 +1,5 @@
 # Co-Tower Defense
-# COTO: Yo te defiendo
+## COTO: Yo te defiendo
 
 El proyecto contiene un servidor TCP multihilo, un bucle de juego productor-consumidor, un cliente de red en Godot y un bot en Python para pruebas de concurrencia. El servidor TCP actúa como el proceso padre y un proceso hijo ejecutado mediante `exec` calcula patrones de oleadas deterministas a través de dos tuberías (*pipes*).
 
