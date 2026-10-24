@@ -6,6 +6,6 @@ class_name GameOverPanel
 
 
 func show_result(payload: Dictionary) -> void:
-  result_label.text = "VICTORIA" if payload.get("result") == "VICTORY" else "DERROTA"
-  reason_label.text = String(payload.get("reason", ""))
-  visible = true
+	result_label.text = "VICTORIA" if payload.get("result") == "VICTORY" else "DERROTA"
+	reason_label.text = String(payload.get("reason", ""))
+	visible = true

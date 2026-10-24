@@ -57,7 +57,7 @@ Toda lectura TCP debe soportar lecturas parciales y mensajes pegados. Los mensaj
 
 ## Reglas de código
 
-- Python y GDScript: 2 espacios, sin tabs.
+- Python: 2 espacios, sin tabs. GDScript del cliente Godot: tabs, según la guía de estilo oficial de Godot.
 - Funciones de menos de 15 líneas; extraer helpers si crecen.
 - Todo el código, nombres de nodos, funciones, señales, comentarios y commits en inglés.
 - Sin números mágicos: usar `servidor/constants.py`, `servidor/protocol.py` o `const` en GDScript.

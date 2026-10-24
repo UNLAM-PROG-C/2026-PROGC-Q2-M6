@@ -141,6 +141,8 @@ Open the visual editor on the host:
 godot --editor --path cliente_godot
 ```
 
+Configure the Godot script editor to use tabs for GDScript indentation, as recommended by the Godot style guide. The repository `.editorconfig` applies this rule only to `cliente_godot/**/*.gd`; Python and other project files keep their existing formatting rules.
+
 The host editor is intentionally outside Docker because the Sprint 0 setup does not configure graphical display forwarding. The project itself is shared through the repository mount and is validated with the Godot container.
 
 ## Sprint 4: playable supermarket defense
