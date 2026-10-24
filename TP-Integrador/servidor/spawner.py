@@ -9,6 +9,7 @@ from typing import Any
 
 from servidor.constants import (
   LANE_COUNT,
+  INTER_WAVE_DELAY_SECONDS,
   SPAWN_INTERVAL_SECONDS,
   TOTAL_WAVES,
 )
@@ -62,16 +63,22 @@ class EnemySpawner:
       pass
     if self.stop_event.is_set():
       return
-    for wave in range(1, TOTAL_WAVES + 1):
-      if self.stop_event.is_set():
-        return
-      self._produce_wave(wave)
-      if not self._wait_for_wave_completion():
-        return
-      send_stats_update(self.worker, {
-        "wave": wave,
-        "enemies_defeated": 0,
-      })
+    while not self.stop_event.is_set():
+      for wave in range(1, TOTAL_WAVES + 1):
+        if self.stop_event.is_set():
+          return
+        self._produce_wave(wave)
+        if not self._wait_for_wave_completion():
+          return
+        send_stats_update(self.worker, {
+          "wave": wave,
+          "enemies_defeated": 0,
+        })
+        if wave < TOTAL_WAVES and self.stop_event.wait(INTER_WAVE_DELAY_SECONDS):
+          return
+      self.ready_event.clear()
+      while not self.stop_event.is_set() and not self.ready_event.wait(0.1):
+        pass
 
   def _produce_wave(self, wave: int) -> None:
     pattern = request_wave(self.worker, wave)

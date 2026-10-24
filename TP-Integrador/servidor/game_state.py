@@ -151,6 +151,16 @@ class GameState:
     """Add an enemy received from the producer queue."""
     self.enemies.append(enemy)
 
+  def reset_match(self) -> None:
+    """Restore shared resources for a new match."""
+    with self.gold_lock:
+      with self.base_hp_lock:
+        self.gold = INITIAL_GOLD
+        self.base_hp = INITIAL_BASE_HP
+        self.current_wave = 0
+        self.towers.clear()
+        self.enemies.clear()
+
   def advance_enemies(self, elapsed_seconds: float) -> list[Enemy]:
     """Move enemies and return those that reached the base."""
     for enemy in self.enemies:
@@ -221,6 +231,7 @@ class GameState:
       "enemy_id": enemy.enemy_id,
       "enemy_type": enemy.enemy_type,
       "health": enemy.health,
+      "max_health": ENEMY_STATS[enemy.enemy_type]["health"],
       "lane": enemy.lane,
       "pos": list(enemy.position),
       "stunned": enemy.stun_remaining > 0,

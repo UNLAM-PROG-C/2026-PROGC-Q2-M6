@@ -115,3 +115,13 @@ func _on_error(payload: Dictionary) -> void:
 
 func _on_game_over(payload: Dictionary) -> void:
 	game_over.show_result(payload)
+
+
+func reset_for_new_game() -> void:
+	for view in tower_views.values():
+		view.queue_free()
+	for view in enemy_views.values():
+		view.queue_free()
+	tower_views.clear()
+	enemy_views.clear()
+	game_over.visible = false

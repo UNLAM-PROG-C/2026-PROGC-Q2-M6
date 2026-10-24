@@ -77,7 +77,7 @@ The Godot client can be opened on the host with:
 godot --editor --path cliente_godot
 ```
 
-Run `Main.tscn`, enter the server host and port, and press `Connect`. After two clients send `READY`, the lobby changes to the supermarket board and renders the authoritative state.
+Run `Main.tscn`, enter the server host and port, and press `Connect`. The lobby shows the connected player count; each player presses `Iniciar partida` and, after at least two players confirm, the board opens. Between waves the server pauses briefly so players can prepare. After victory or defeat, `Jugar nuevamente` returns to the lobby without restarting the server.
 
 The Sprint 2 server uses an acceptor thread, one client thread per socket, a producer queue for enemies and a 20 Hz game-loop consumer. The historical race evidence is documented in `docs/sprint-2-status.md`; Sprint 3 now protects the shared state with locks.
 
