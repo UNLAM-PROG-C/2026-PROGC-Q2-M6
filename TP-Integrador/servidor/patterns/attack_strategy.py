@@ -44,8 +44,11 @@ class AttackStrategy:
   @staticmethod
   def _lane_enemies(tower: Tower, enemies: list[Enemy]) -> list[Enemy]:
     return sorted(
-      (enemy for enemy in enemies if enemy.lane == tower.lane),
-      key=lambda enemy: enemy.position[0],
+      (
+        enemy for enemy in enemies
+        if enemy.lane == tower.lane and enemy.position[0] <= tower.position[0]
+      ),
+      key=lambda enemy: tower.position[0] - enemy.position[0],
     )
 
 
@@ -60,22 +63,22 @@ class MopperStrategy(AttackStrategy):
 
 
 class StockReplenisherStrategy(AttackStrategy):
-  """Heavy line-area attack against one lane."""
+  """Heavy attack against the nearest enemy in one lane."""
 
   def attack(self, tower, enemies, elapsed_seconds) -> list[AttackEffect]:
     if not self._ready(tower, elapsed_seconds):
       return []
-    targets = self._lane_enemies(tower, enemies)
+    targets = self._lane_enemies(tower, enemies)[:1]
     return _effect_for(targets, tower.tower_type)
 
 
 class AudioTowerStrategy(AttackStrategy):
-  """Sonic attack that damages and briefly stuns a lane."""
+  """Sonic attack that damages and briefly stuns the nearest enemy."""
 
   def attack(self, tower, enemies, elapsed_seconds) -> list[AttackEffect]:
     if not self._ready(tower, elapsed_seconds):
       return []
-    targets = self._lane_enemies(tower, enemies)
+    targets = self._lane_enemies(tower, enemies)[:1]
     return _effect_for(targets, tower.tower_type)
 
 

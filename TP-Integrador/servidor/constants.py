@@ -63,6 +63,11 @@ TOWER_STATS = {
   },
 }
 
+TOWER_UPGRADES = {
+  "MOPPER": "STOCK_REPLENISHER",
+  "STOCK_REPLENISHER": "AUDIO_TOWER",
+}
+
 ENEMY_STATS = {
   "DISCOUNT_CHILD": {
     "health": 30, "speed": "NORMAL", "reward": 5, "from_wave": 1,

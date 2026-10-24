@@ -14,6 +14,7 @@ from servidor.constants import (
   INITIAL_GOLD,
   LANE_COUNT,
   TOWER_STATS,
+  TOWER_UPGRADES,
 )
 
 
@@ -66,6 +67,7 @@ class GameState:
   current_wave: int = 0
   towers: list[Tower] = field(default_factory=list)
   enemies: list[Enemy] = field(default_factory=list)
+  last_attacks: list[dict] = field(default_factory=list, init=False, repr=False)
   purchase_hook: Callable[[], None] | None = field(
     default=None, repr=False, compare=False
   )
@@ -108,6 +110,27 @@ class GameState:
           return refund
       raise ValueError("TOWER_NOT_FOUND")
 
+  def upgrade_tower(self, tower_id: int) -> Tower:
+    """Evolve a tower to the next configured type."""
+    with self.gold_lock:
+      tower = next(
+        (item for item in self.towers if item.tower_id == tower_id), None
+      )
+      if tower is None:
+        raise ValueError("TOWER_NOT_FOUND")
+      next_type = TOWER_UPGRADES.get(tower.tower_type)
+      if next_type is None:
+        raise ValueError("MAX_TOWER_LEVEL")
+      cost = max(
+        0,
+        TOWER_STATS[next_type]["cost"] - TOWER_STATS[tower.tower_type]["cost"],
+      )
+      if self.gold < cost:
+        raise ValueError("INSUFFICIENT_GOLD")
+      self.gold -= cost
+      tower.tower_type = next_type
+      return tower
+
   def reward_enemy(self, enemy_type: str) -> int:
     """Credit the configured reward for one defeated enemy."""
     if not isinstance(enemy_type, str) or enemy_type not in ENEMY_STATS:
@@ -141,9 +164,16 @@ class GameState:
     from servidor.patterns.attack_strategy import create_attack_strategy
 
     defeated: list[int] = []
+    self.last_attacks.clear()
     for tower in self.towers:
       strategy = create_attack_strategy(tower.tower_type)
       effects = strategy.attack(tower, self.enemies, elapsed_seconds)
+      for effect in effects:
+        self.last_attacks.append({
+          "tower_id": tower.tower_id,
+          "target_ids": list(effect.target_ids),
+          "tower_type": tower.tower_type,
+        })
       defeated.extend(self._apply_attack_effects(effects))
     return defeated
 
@@ -160,6 +190,7 @@ class GameState:
         self.current_wave = 0
         self.towers.clear()
         self.enemies.clear()
+        self.last_attacks.clear()
 
   def advance_enemies(self, elapsed_seconds: float) -> list[Enemy]:
     """Move enemies and return those that reached the base."""
@@ -221,6 +252,7 @@ class GameState:
     return {
       "tower_id": tower.tower_id,
       "tower_type": tower.tower_type,
+      "level": list(TOWER_STATS).index(tower.tower_type) + 1,
       "lane": tower.lane,
       "pos": list(tower.position),
     }

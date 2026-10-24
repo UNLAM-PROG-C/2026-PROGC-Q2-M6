@@ -5,6 +5,8 @@ const ENEMY_SCENE: PackedScene = preload("res://scenes/Enemy.tscn")
 
 var tower_views: Dictionary = {}
 var enemy_views: Dictionary = {}
+var attack_effects: Array[Dictionary] = []
+var base_hp: float = 100.0
 
 @onready var input_handler: GameInputHandler = $InputHandler
 @onready var hud: GameHud = $Hud
@@ -16,9 +18,19 @@ func _ready() -> void:
 	NetworkClient.state_update_received.connect(_on_state_update)
 	NetworkClient.error_received.connect(_on_error)
 	NetworkClient.game_over_received.connect(_on_game_over)
+	NetworkClient.attack_received.connect(_on_attack)
 	hud.tower_selected.connect(input_handler.select_tower)
 	input_handler.placement_rejected.connect(hud.show_error)
 	game_over.visible = false
+	queue_redraw()
+
+
+func _process(delta: float) -> void:
+	for effect in attack_effects:
+		effect["remaining"] = float(effect["remaining"]) - delta
+	attack_effects = attack_effects.filter(func(effect: Dictionary) -> bool:
+		return float(effect["remaining"]) > 0.0
+	)
 	queue_redraw()
 
 
@@ -26,6 +38,12 @@ func _draw() -> void:
 	_draw_background()
 	_draw_lanes()
 	_draw_base()
+	for effect in attack_effects:
+		var tower: Node2D = tower_views.get(int(effect["tower_id"])) as Node2D
+		var enemy: Node2D = enemy_views.get(int(effect["target_id"])) as Node2D
+		if tower != null and enemy != null:
+			draw_line(tower.position, enemy.position, Color("#ffe36e"), 4.0)
+			draw_circle(enemy.position, 7.0, Color("#fff4a8"))
 
 
 func _draw_background() -> void:
@@ -45,8 +63,14 @@ func _draw_lanes() -> void:
 
 
 func _draw_base() -> void:
-	draw_rect(Rect2(822, 150, 112, 280), Color("#55a5bd"))
-	draw_rect(Rect2(834, 165, 88, 230), Color("#bcecf1"))
+	var ratio := clampf(base_hp / 100.0, 0.0, 1.0)
+	var outer_color := Color("#55a5bd").lerp(Color("#713838"), 1.0 - ratio)
+	draw_rect(Rect2(822, 150, 112, 280), outer_color)
+	draw_rect(Rect2(834, 165, 88, 230), Color("#bcecf1").lerp(Color("#d36d55"), 1.0 - ratio))
+	if ratio < 0.75:
+		draw_line(Vector2(850, 210), Vector2(880, 260), Color("#713838"), 4.0)
+	if ratio < 0.45:
+		draw_line(Vector2(885, 290), Vector2(850, 350), Color("#713838"), 4.0)
 	draw_string(
 		ThemeDB.fallback_font,
 		Vector2(842, 190),
@@ -59,6 +83,7 @@ func _draw_base() -> void:
 
 
 func _on_state_update(payload: Dictionary) -> void:
+	base_hp = float(payload.get("base_hp", 100.0))
 	hud.update_state(payload)
 	_sync_towers(payload.get("towers", []))
 	_sync_enemies(payload.get("enemies", []))
@@ -117,6 +142,16 @@ func _on_game_over(payload: Dictionary) -> void:
 	game_over.show_result(payload)
 
 
+func _on_attack(payload: Dictionary) -> void:
+	for target_id in payload.get("target_ids", []):
+		attack_effects.append({
+			"tower_id": int(payload.get("tower_id", -1)),
+			"target_id": int(target_id),
+			"remaining": 0.16,
+		})
+	queue_redraw()
+
+
 func reset_for_new_game() -> void:
 	for view in tower_views.values():
 		view.queue_free()
@@ -124,4 +159,5 @@ func reset_for_new_game() -> void:
 		view.queue_free()
 	tower_views.clear()
 	enemy_views.clear()
+	attack_effects.clear()
 	game_over.visible = false

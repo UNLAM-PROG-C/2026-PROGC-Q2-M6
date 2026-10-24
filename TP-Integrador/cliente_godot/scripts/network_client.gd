@@ -8,10 +8,14 @@ signal message_received(message: Dictionary)
 signal welcome_received(payload: Dictionary)
 signal state_update_received(payload: Dictionary)
 signal wave_start_received(payload: Dictionary)
+signal countdown_received(payload: Dictionary)
 signal base_damage_received(payload: Dictionary)
 signal game_over_received(payload: Dictionary)
 signal error_received(payload: Dictionary)
+signal attack_received(payload: Dictionary)
 
+var player_id: int = -1
+var is_host: bool = false
 var server_host: String = "127.0.0.1"
 var server_port: int = ProtocolConstants.DEFAULT_PORT
 var _tcp: StreamPeerTCP
@@ -45,6 +49,8 @@ func request_connection(host: String, port: int) -> void:
 		return
 	server_host = host
 	server_port = port
+	player_id = -1
+	is_host = false
 	_close_connection()
 	_tcp = StreamPeerTCP.new()
 	_receive_buffer.clear()
@@ -124,12 +130,16 @@ func _dispatch_message(body: PackedByteArray) -> void:
 			state_update_received.emit(payload)
 		String(ProtocolConstants.WAVE_START):
 			wave_start_received.emit(payload)
+		String(ProtocolConstants.COUNTDOWN):
+			countdown_received.emit(payload)
 		String(ProtocolConstants.BASE_DAMAGE):
 			base_damage_received.emit(payload)
 		String(ProtocolConstants.GAME_OVER):
 			game_over_received.emit(payload)
 		String(ProtocolConstants.ERROR):
 			error_received.emit(payload)
+		String(ProtocolConstants.ATTACK):
+			attack_received.emit(payload)
 
 
 func _encode_frame(body: PackedByteArray) -> PackedByteArray:
