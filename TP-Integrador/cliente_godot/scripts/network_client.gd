@@ -26,6 +26,7 @@ const MAX_FRAME_SIZE: int = 1048576
 func _process(_delta: float) -> void:
 	if _tcp == null:
 		return
+	_tcp.poll()
 	var status := _tcp.get_status()
 	if status == StreamPeerTCP.STATUS_CONNECTED:
 		_handle_connected()
