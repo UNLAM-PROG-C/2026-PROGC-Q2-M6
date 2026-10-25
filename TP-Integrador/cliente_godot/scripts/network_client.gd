@@ -21,6 +21,7 @@ var server_port: int = ProtocolConstants.DEFAULT_PORT
 var _tcp: StreamPeerTCP
 var _receive_buffer := PackedByteArray()
 var _was_connected := false
+var _is_connecting := false
 var _hello_sent := false
 
 const FRAME_HEADER_SIZE: int = 4
@@ -33,14 +34,23 @@ func _process(_delta: float) -> void:
 	_tcp.poll()
 	var status := _tcp.get_status()
 	if status == StreamPeerTCP.STATUS_CONNECTED:
+		_is_connecting = false
 		_handle_connected()
 		_read_available_data()
 		return
-	if _was_connected and status != StreamPeerTCP.STATUS_CONNECTING:
+	if _was_connected and status != StreamPeerTCP.STATUS_CONNECTED:
 		_was_connected = false
+		_is_connecting = false
+		_close_connection()
+		_tcp = null
 		disconnected_from_server.emit()
-	if status == StreamPeerTCP.STATUS_ERROR:
+		return
+	if _is_connecting and (status == StreamPeerTCP.STATUS_ERROR or status == StreamPeerTCP.STATUS_NONE):
+		_is_connecting = false
+		_close_connection()
+		_tcp = null
 		connection_failed.emit("The server connection failed.")
+		return
 
 
 func request_connection(host: String, port: int) -> void:
@@ -55,8 +65,12 @@ func request_connection(host: String, port: int) -> void:
 	_tcp = StreamPeerTCP.new()
 	_receive_buffer.clear()
 	_hello_sent = false
+	_is_connecting = true
 	var result := _tcp.connect_to_host(server_host, server_port)
 	if result != OK:
+		_is_connecting = false
+		_close_connection()
+		_tcp = null
 		connection_failed.emit("Could not start the connection.")
 		return
 	connection_requested.emit(server_host, server_port)
@@ -156,7 +170,17 @@ func _decode_u32(bytes: PackedByteArray) -> int:
 	return (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3]
 
 
+func is_connected_to_server() -> bool:
+	return _was_connected and _tcp != null and _tcp.get_status() == StreamPeerTCP.STATUS_CONNECTED
+
+
+func disconnect_from_server() -> void:
+	_close_connection()
+	_tcp = null
+
+
 func _close_connection() -> void:
 	if _tcp != null:
 		_tcp.disconnect_from_host()
 	_was_connected = false
+	_is_connecting = false

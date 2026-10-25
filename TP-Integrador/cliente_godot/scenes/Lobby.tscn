@@ -1,6 +1,20 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/lobby.gd" id="1_lobby"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ngrok"]
+bg_color = Color(0.14, 0.15, 0.18, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.28, 0.32, 0.4, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+shadow_color = Color(0, 0, 0, 0.6)
+shadow_size = 16
 
 [node name="Lobby" type="Control"]
 layout_mode = 3
@@ -18,10 +32,10 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -220.0
-offset_top = -190.0
-offset_right = 220.0
-offset_bottom = 190.0
+offset_left = -250.0
+offset_top = -240.0
+offset_right = 250.0
+offset_bottom = 240.0
 grow_horizontal = 2
 grow_vertical = 2
 
@@ -33,13 +47,13 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 theme_override_constants/margin_left = 32
-theme_override_constants/margin_top = 32
+theme_override_constants/margin_top = 28
 theme_override_constants/margin_right = 32
-theme_override_constants/margin_bottom = 32
+theme_override_constants/margin_bottom = 28
 
 [node name="Content" type="VBoxContainer" parent="Panel/MarginContainer"]
 layout_mode = 2
-theme_override_constants/separation = 12
+theme_override_constants/separation = 10
 
 [node name="Title" type="Label" parent="Panel/MarginContainer/Content"]
 layout_mode = 2
@@ -48,13 +62,21 @@ horizontal_alignment = 1
 
 [node name="HostLabel" type="Label" parent="Panel/MarginContainer/Content"]
 layout_mode = 2
-text = "IP y puerto del servidor"
+text = "IP o dirección del servidor"
 
 [node name="HostInput" type="LineEdit" parent="Panel/MarginContainer/Content"]
 layout_mode = 2
-placeholder_text = "100.67.173.72:5001"
-tooltip_text = "Ingresá IP:puerto, por ejemplo 100.67.173.72:5001"
-text = "127.0.0.1"
+placeholder_text = "26.x.x.x:5001"
+tooltip_text = "Pegá el código que te pasó el anfitrión (IP de Radmin VPN)"
+text = ""
+
+[node name="RadminInfo" type="Label" parent="Panel/MarginContainer/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.75, 0.85, 1, 1)
+theme_override_font_sizes/font_size = 12
+text = "Ambos deben estar en Radmin VPN, red: TowerDefense-UNLAM  |  clave: 1234"
+horizontal_alignment = 1
+autowrap_mode = 2
 
 [node name="PortLabel" type="Label" parent="Panel/MarginContainer/Content"]
 layout_mode = 2
@@ -73,11 +95,12 @@ text = "Connect"
 [node name="CreatePartyButton" type="Button" parent="Panel/MarginContainer/Content"]
 layout_mode = 2
 text = "Crear partida"
+tooltip_text = "Requiere Docker Desktop para crear la partida"
 
 [node name="SharePanel" type="PanelContainer" parent="Panel/MarginContainer/Content"]
 layout_mode = 2
 visible = false
-custom_minimum_size = Vector2(0, 64)
+custom_minimum_size = Vector2(0, 72)
 
 [node name="ShareRow" type="HBoxContainer" parent="Panel/MarginContainer/Content/SharePanel"]
 layout_mode = 2
@@ -87,8 +110,8 @@ theme_override_constants/separation = 8
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_colors/font_color = Color(0.96, 0.96, 0.96, 1)
-theme_override_font_sizes/font_size = 16
-text = "Pasale estos datos a tus amigos:\n100.67.173.72:5001"
+theme_override_font_sizes/font_size = 15
+text = "Compartir con amigos"
 horizontal_alignment = 1
 vertical_alignment = 1
 autowrap_mode = 2
@@ -96,7 +119,7 @@ autowrap_mode = 2
 [node name="CopyButton" type="Button" parent="Panel/MarginContainer/Content/SharePanel/ShareRow"]
 custom_minimum_size = Vector2(42, 0)
 layout_mode = 2
-tooltip_text = "Copiar IP y puerto"
+tooltip_text = "Copiar dirección"
 text = "⧉"
 theme_override_font_sizes/font_size = 22
 
@@ -110,3 +133,5 @@ layout_mode = 2
 text = "Not connected"
 horizontal_alignment = 1
 autowrap_mode = 2
+
+
