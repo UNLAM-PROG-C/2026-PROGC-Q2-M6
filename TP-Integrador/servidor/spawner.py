@@ -36,12 +36,16 @@ class EnemySpawner:
     ready_event: threading.Event,
     wave_complete_event: threading.Event,
     stop_event: threading.Event,
+    wave_start_event: threading.Event | None = None,
+    match_reset_event: threading.Event | None = None,
   ) -> None:
     self.enemy_queue = enemy_queue
     self.worker = worker
     self.ready_event = ready_event
     self.wave_complete_event = wave_complete_event
     self.stop_event = stop_event
+    self.wave_start_event = wave_start_event
+    self.match_reset_event = match_reset_event
     self._next_enemy_id = 1
     self.thread = threading.Thread(
       target=self.run,
@@ -59,14 +63,28 @@ class EnemySpawner:
 
   def run(self) -> None:
     """Wait for players and produce all deterministic waves."""
-    while not self.stop_event.is_set() and not self.ready_event.wait(0.1):
-      pass
-    if self.stop_event.is_set():
-      return
     while not self.stop_event.is_set():
-      for wave in range(1, TOTAL_WAVES + 1):
+      while not self.stop_event.is_set() and not self.ready_event.wait(0.1):
+        pass
+      if self.stop_event.is_set():
+        return
+      if self.wave_start_event is not None:
+        while (
+          not self.stop_event.is_set()
+          and not self.wave_start_event.wait(0.1)
+        ):
+          pass
         if self.stop_event.is_set():
           return
+        pass
+        self.wave_start_event.clear()
+      reset = False
+      for wave in range(1, TOTAL_WAVES + 1):
+        if self.stop_event.is_set() or (
+          self.match_reset_event is not None and self.match_reset_event.is_set()
+        ):
+          reset = True
+          break
         self._produce_wave(wave)
         if not self._wait_for_wave_completion():
           return
@@ -76,9 +94,11 @@ class EnemySpawner:
         })
         if wave < TOTAL_WAVES and self.stop_event.wait(INTER_WAVE_DELAY_SECONDS):
           return
+      if reset:
+        if self.match_reset_event is not None:
+          self.match_reset_event.clear()
+        continue
       self.ready_event.clear()
-      while not self.stop_event.is_set() and not self.ready_event.wait(0.1):
-        pass
 
   def _produce_wave(self, wave: int) -> None:
     pattern = request_wave(self.worker, wave)
@@ -94,6 +114,8 @@ class EnemySpawner:
   def _wait_for_wave_completion(self) -> bool:
     self.wave_complete_event.clear()
     while not self.stop_event.is_set():
+      if self.match_reset_event is not None and self.match_reset_event.is_set():
+        return True
       if self.wave_complete_event.wait(0.1):
         return True
     return False

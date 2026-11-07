@@ -36,7 +36,7 @@ func _draw() -> void:
 		HORIZONTAL_ALIGNMENT_LEFT,
 		60,
 		12,
-		Color("#ffffff"),
+		Color("#111111"),
 	)
 	if sprite.modulate != Color.WHITE:
 		draw_arc(Vector2.ZERO, 36.0, 0.0, TAU, 24, Color("#ffe178"), 3.0)

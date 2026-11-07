@@ -15,6 +15,7 @@ func _ready() -> void:
 func show_result(payload: Dictionary) -> void:
 	result_label.text = "VICTORIA" if payload.get("result") == "VICTORY" else "DERROTA"
 	reason_label.text = String(payload.get("reason", ""))
+	play_again_button.visible = NetworkClient.is_host
 	visible = true
 
 

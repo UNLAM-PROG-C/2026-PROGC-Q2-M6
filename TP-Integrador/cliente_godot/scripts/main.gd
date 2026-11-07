@@ -8,7 +8,9 @@ func _ready() -> void:
 	game_view.visible = false
 	NetworkClient.state_update_received.connect(_on_state_update)
 	NetworkClient.game_over_received.connect(_on_game_over)
+	NetworkClient.countdown_received.connect(_on_countdown)
 	game_view.game_over.play_again.connect(_on_play_again)
+	lobby.match_started.connect(_on_match_started)
 
 
 func _on_state_update(payload: Dictionary) -> void:
@@ -25,7 +27,19 @@ func _on_game_over(_payload: Dictionary) -> void:
 	game_view.visible = true
 
 
+func _on_countdown(_payload: Dictionary) -> void:
+	lobby.visible = false
+	game_view.visible = true
+
+
+func _on_match_started() -> void:
+	game_view.reset_for_new_game()
+	lobby.visible = false
+	game_view.visible = true
+
+
 func _on_play_again() -> void:
 	game_view.reset_for_new_game()
 	game_view.visible = false
 	lobby.show_waiting_for_start()
+	NetworkClient.send_message(ProtocolConstants.READY, {"start": true})

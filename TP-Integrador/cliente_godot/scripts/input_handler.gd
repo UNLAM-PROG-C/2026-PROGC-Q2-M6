@@ -23,11 +23,14 @@ func _input(event: InputEvent) -> void:
 
 
 func _handle_click(event: InputEventMouseButton) -> void:
-	if event.button_index != MOUSE_BUTTON_LEFT:
-		return
 	var tower_id := _tower_at(event.position)
 	if tower_id >= 0:
-		NetworkClient.send_message(ProtocolConstants.SELL_TOWER, {"tower_id": tower_id})
+		if event.button_index == MOUSE_BUTTON_LEFT:
+			NetworkClient.send_message(ProtocolConstants.UPGRADE_TOWER, {"tower_id": tower_id})
+		elif event.button_index == MOUSE_BUTTON_RIGHT:
+			NetworkClient.send_message(ProtocolConstants.SELL_TOWER, {"tower_id": tower_id})
+		return
+	if event.button_index != MOUSE_BUTTON_LEFT:
 		return
 	if selected_tower.is_empty():
 		return
