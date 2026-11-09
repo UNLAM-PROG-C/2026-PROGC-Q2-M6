@@ -29,9 +29,9 @@ theme_override_font_sizes/font_size = 22
 text = "ORO: 200"
 
 [node name="BaseLabel" type="Label" parent="TopBar"]
-offset_left = 205.0
+offset_left = 180.0
 offset_top = 28.0
-offset_right = 390.0
+offset_right = 335.0
 offset_bottom = 62.0
 theme_override_colors/font_color = Color(0.05, 0.05, 0.05, 1)
 theme_override_font_sizes/font_size = 22
@@ -47,38 +47,38 @@ value = 100.0
 show_percentage = false
 
 [node name="WaveLabel" type="Label" parent="TopBar"]
-offset_left = 410.0
+offset_left = 340.0
 offset_top = 28.0
-offset_right = 600.0
+offset_right = 520.0
 offset_bottom = 62.0
 theme_override_font_sizes/font_size = 22
 text = "OLEADA: 0/10"
 
 [node name="TowerPanel" type="Panel" parent="."]
-offset_left = 610.0
+offset_left = 530.0
 offset_top = 10.0
-offset_right = 950.0
+offset_right = 790.0
 offset_bottom = 80.0
 mouse_filter = 1
 
 [node name="MopperButton" type="Button" parent="TowerPanel"]
-offset_left = 8.0
+offset_left = 4.0
 offset_top = 12.0
-offset_right = 112.0
+offset_right = 82.0
 offset_bottom = 58.0
 text = "Mopeador\n$50"
 
 [node name="StockButton" type="Button" parent="TowerPanel"]
-offset_left = 118.0
+offset_left = 86.0
 offset_top = 12.0
-offset_right = 222.0
+offset_right = 164.0
 offset_bottom = 58.0
 text = "Repositor\n$120"
 
 [node name="AudioButton" type="Button" parent="TowerPanel"]
-offset_left = 228.0
+offset_left = 168.0
 offset_top = 12.0
-offset_right = 332.0
+offset_right = 246.0
 offset_bottom = 58.0
 text = "Paging\n$150"
 

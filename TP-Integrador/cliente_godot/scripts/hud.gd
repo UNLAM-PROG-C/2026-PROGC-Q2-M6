@@ -27,6 +27,14 @@ func update_state(payload: Dictionary) -> void:
 	wave_label.text = "OLEADA: %s/10" % payload.get("current_wave", 0)
 
 
+func reset_state() -> void:
+	update_state({
+		"gold": 200,
+		"base_hp": 100,
+		"current_wave": 0,
+	})
+
+
 func show_error(message: String) -> void:
 	var friendly_messages := {
 		"INSUFFICIENT_GOLD": "No hay suficiente dinero para comprar esa torre.",

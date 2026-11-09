@@ -10,7 +10,8 @@ config_version=5
 
 [application]
 
-config/name="Tower Defense Cooperative"
+config/name="Tower Defense Cooperative v1.0.10"
+config/version="1.0.10"
 run/main_scene="res://scenes/Main.tscn"
 config/features=PackedStringArray("4.7")
 

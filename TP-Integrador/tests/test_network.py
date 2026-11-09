@@ -16,6 +16,7 @@ from servidor.protocol import (
   HELLO,
   BUY_TOWER,
   READY,
+  START_GAME,
   STATE_UPDATE,
   WELCOME,
   encode_message,
@@ -119,6 +120,7 @@ def test_ready_client_counts_receive_authoritative_updates(
 def test_late_ready_client_is_rejected(running_game) -> None:
   first = _connect(running_game, "first")
   second = _connect(running_game, "second")
+  send_message(first, START_GAME, {})
   late = socket.create_connection(running_game.address, timeout=2)
   try:
     assert recv_message(late)["type"] == WELCOME
@@ -151,13 +153,17 @@ def test_two_clients_receive_shared_tower_state(running_game) -> None:
   first = _connect(running_game, "first")
   second = _connect(running_game, "second")
   try:
+    send_message(first, START_GAME, {})
     send_message(first, BUY_TOWER, {
       "tower_type": "MOPPER",
       "lane": 0,
       "pos": [20.0, 0.0],
     })
-    state = _read_type(second, STATE_UPDATE)
-    towers = state["payload"].get("towers", [])
+    deadline = time.monotonic() + 3
+    towers = []
+    while time.monotonic() < deadline and not towers:
+      state = _read_type(second, STATE_UPDATE)
+      towers = state["payload"].get("towers", [])
     assert towers[0]["tower_type"] == "MOPPER"
   finally:
     first.close()

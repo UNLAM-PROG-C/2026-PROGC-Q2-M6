@@ -71,7 +71,36 @@ docker compose up --build server
 
 Conectá los clientes de Godot a `127.0.0.1` y al mismo puerto. Mantené esta terminal abierta mientras la partida esté en curso; presioná `Ctrl+C` para detener el servidor.
 
-El registro de inicio incluye los PIDs del proceso padre y del hijo. El servidor espera a que dos clientes estén listos (`READY`) antes de que el generador (*spawner*) inicie la primera oleada, y permanece activo hasta recibir `SIGINT` o `SIGTERM`.
+El botón `Crear partida` del lobby se usa únicamente en la PC anfitriona: inicia automáticamente
+Radmin VPN, Docker Desktop y el servicio `server`, y muestra una dirección única con formato
+`IP:puerto` para compartirla con los demás jugadores. El botón `Copiar` copia esa dirección al
+portapapeles. La pantalla informa cada etapa y muestra el motivo exacto si falta
+algún componente, si Docker no puede iniciar, si Compose falla o si el puerto no responde.
+Esta automatización requiere Windows, Radmin VPN instalado y permisos suficientes para iniciar
+Docker Desktop.
+
+Los demás jugadores no deben crear otra partida. Deben pegar la dirección `IP:puerto` completa en
+el recuadro del lobby y presionar `Unirse`; el programa inicia Radmin VPN antes de conectar y
+separa automáticamente la IP y el puerto. Radmin VPN debe estar instalado y ambos jugadores
+deben pertenecer a la misma red de Radmin VPN; abrir la aplicación no puede unirla
+automáticamente a una red que no esté configurada.
+`127.0.0.1` solo se usa internamente en la PC anfitriona.
+
+### Instalador de Windows
+
+La fuente reproducible del instalador está en `installer/TowerDefenseSetup.iss`. El instalador
+incluye el cliente Godot, el servidor y los archivos necesarios para iniciar la partida. Docker
+Desktop y Radmin VPN aparecen seleccionados por defecto y se instalan mediante `winget`; se pueden
+desmarcar si ya están instalados. El instalador verifica Docker Engine y Docker Compose antes de
+finalizar y crea accesos directos del juego y de Radmin VPN en el escritorio. El desinstalador
+pregunta por separado si también debe quitar Docker Desktop y Radmin VPN; ambas opciones son
+voluntarias y Docker puede tener datos locales que se perderán al desinstalarlo.
+
+El instalador escribe el diagnóstico en `%ProgramData%\TowerDefense\installer.log`. El flujo de
+inicio del lobby usa un archivo temporal dentro del perfil del usuario para comunicar el estado
+entre Godot y PowerShell.
+
+El registro de inicio incluye los PIDs del proceso padre y del hijo. El servidor designa al primer cliente como anfitrión; cuando el anfitrión presiona `Iniciar partida`, inicia la primera oleada para todos los clientes conectados. El servidor permanece activo hasta recibir `SIGINT` o `SIGTERM`.
 
 El proceso trabajador requiere `fork()`, por lo que se ejecuta de forma nativa en Linux/macOS. En Windows, utilizá WSL. El proceso hijo se inicia con:
 

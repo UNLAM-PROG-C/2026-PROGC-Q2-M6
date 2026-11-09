@@ -12,7 +12,6 @@ from servidor.constants import (
   GAME_TICK_SECONDS,
   MAX_PLAYERS,
   MIN_PLAYERS,
-  READY_BARRIER_TIMEOUT_SECONDS,
   TOTAL_WAVES,
 )
 from servidor.game_state import GameState
@@ -32,8 +31,12 @@ from servidor.protocol import (
   COUNTDOWN,
   ERROR,
   GAME_OVER,
+  MATCH_RESET,
+  MATCH_STARTED,
   PING,
   READY,
+  RESET_MATCH,
+  START_GAME,
   SELL_TOWER,
   STATE_UPDATE,
   WAVE_START,
@@ -65,7 +68,6 @@ class GameLoop:
     self.enemy_queue = enemy_queue
     self.stop_event = stop_event
     self.clients_lock = server.clients_lock
-    self.ready_players: set[int] = set()
     self.clients: dict[int, ClientConnection] = {}
     self.host_player_id: int | None = None
     self.wave_start_event = threading.Event()
@@ -74,7 +76,9 @@ class GameLoop:
     self.countdown_generation = 0
     self.participants: set[int] = set()
     self.roster_locked = False
-    self.start_barrier: threading.Barrier | None = None
+    self.host_player_id: int | None = None
+    self.start_requested = False
+    self.first_tower_placed = False
     self.game_over_sent = False
     self.ready_event = threading.Event()
     self.wave_complete_event = threading.Event()
@@ -143,6 +147,8 @@ class GameLoop:
     handlers = {
       HELLO: self._handle_hello,
       READY: self._handle_ready,
+      START_GAME: self._handle_start_game,
+      RESET_MATCH: self._handle_reset_match,
       BUY_TOWER: self._handle_buy,
       UPGRADE_TOWER: self._handle_upgrade,
       SELL_TOWER: self._handle_sell,
@@ -175,21 +181,30 @@ class GameLoop:
       "is_host": client.player_id == self.host_player_id,
     })
 
-  def _handle_ready(self, client: ClientConnection, payload: dict) -> None:
-    if payload.get("start", False):
-      if client.player_id != self.host_player_id:
-        raise ValueError("ONLY_HOST_CAN_START")
-      if self.game_over_sent:
-        self._reset_match()
-      self._start_match()
-      return
-    if self.game_over_sent:
-      self._reset_match()
+  def _handle_ready(self, client: ClientConnection, _payload: dict) -> None:
+    # READY is retained for compatibility; only START_GAME starts a match.
     if self.roster_locked and client.player_id not in self.participants:
       raise ValueError("GAME_ALREADY_STARTED")
-    self.ready_players.add(client.player_id)
-    if len(self.ready_players) >= MIN_PLAYERS:
-      self._lock_roster()
+
+  def _handle_start_game(self, client: ClientConnection, _payload: dict) -> None:
+    if client.player_id != self.host_player_id:
+      raise ValueError("ONLY_HOST_CAN_START")
+    if self.roster_locked:
+      raise ValueError("GAME_ALREADY_STARTED")
+    with self.server.clients_lock:
+      if len(self.clients) < MIN_PLAYERS:
+        raise ValueError("INSUFFICIENT_PLAYERS")
+      self.participants = set(self.clients)
+    self.start_requested = True
+    self.roster_locked = True
+    self._broadcast_lobby_status()
+    self.server.broadcast(MATCH_STARTED, {}, self.clients)
+
+  def _handle_reset_match(self, client: ClientConnection, _payload: dict) -> None:
+    if not self.roster_locked:
+      raise ValueError("GAME_NOT_STARTED")
+    self._reset_match()
+    self.server.broadcast(MATCH_RESET, {}, self.clients)
 
   def _handle_buy(self, client: ClientConnection, payload: dict) -> None:
     self._require_participant(client)
@@ -206,6 +221,10 @@ class GameLoop:
   def _handle_upgrade(self, client: ClientConnection, payload: dict) -> None:
     self._require_participant(client)
     self.state.upgrade_tower(payload["tower_id"])
+    if self.start_requested and not self.first_tower_placed:
+      self.first_tower_placed = True
+      self.ready_event.set()
+    self._broadcast_state()
 
   def _handle_sell(self, client: ClientConnection, payload: dict) -> None:
     self._require_participant(client)
@@ -296,6 +315,8 @@ class GameLoop:
       self._send_error(client, "MAX_PLAYERS", "The game is full")
       self.server.close_connection(client)
       return
+    if self.host_player_id is None:
+      self.host_player_id = client.player_id
     self._broadcast_lobby_status()
 
   def _broadcast_lobby_status(self) -> None:
@@ -313,78 +334,14 @@ class GameLoop:
   def _reset_match(self) -> None:
     self.state.reset_match()
     self.game_over_sent = False
-    self.roster_locked = False
-    self.participants.clear()
-    self.ready_players.clear()
-    self.start_barrier = None
-    self.ready_event.clear()
-    self.wave_start_event.clear()
-    self.countdown_active = False
-    self.countdown_generation += 1
-    self.match_reset_event.set()
-
-  def _begin_first_wave_countdown(self) -> None:
-    self.countdown_active = True
-    self.countdown_generation += 1
-    generation = self.countdown_generation
-    threading.Thread(
-      target=self._run_first_wave_countdown,
-      args=(generation,),
-      name="first_wave_countdown",
-      daemon=True,
-    ).start()
-
-  def _run_first_wave_countdown(self, generation: int) -> None:
-    for seconds in (3, 2, 1):
-      if generation != self.countdown_generation:
-        return
-      self.server.broadcast(COUNTDOWN, {"seconds": seconds}, self.clients)
-      if self.stop_event.wait(1.0):
-        return
-    if generation != self.countdown_generation:
-      return
-    self.server.broadcast(COUNTDOWN, {"seconds": 0, "text": "GO"}, self.clients)
-    self.wave_start_event.set()
-
-  def _start_match(self) -> None:
-    with self.server.clients_lock:
-      roster = tuple(self.clients)
-    self.participants = set(roster)
-    self.ready_players = set(roster)
+    self.start_requested = True
+    self.first_tower_placed = False
     self.roster_locked = True
-    self.start_barrier = None
-    self.ready_event.set()
-    self._broadcast_lobby_status()
-
-  def _lock_roster(self) -> None:
-    if self.roster_locked:
-      return
     with self.server.clients_lock:
-      roster = tuple(
-        player_id for player_id in sorted(self.ready_players)
-        if player_id in self.clients
-      )
-      if len(roster) < MIN_PLAYERS:
-        return
-      self.participants = set(roster)
-      self.roster_locked = True
-      self.start_barrier = threading.Barrier(len(roster))
-    for player_id in roster:
-      threading.Thread(
-        target=self._arrive_at_start_barrier,
-        args=(player_id,),
-        name=f"ready_barrier_{player_id}",
-        daemon=True,
-      ).start()
-
-  def _arrive_at_start_barrier(self, _player_id: int) -> None:
-    if self.start_barrier is None:
-      return
-    try:
-      self.start_barrier.wait(timeout=READY_BARRIER_TIMEOUT_SECONDS)
-    except threading.BrokenBarrierError:
-      return
-    self.ready_event.set()
+      self.participants = set(self.clients)
+    self.ready_event.clear()
+    self.wave_complete_event.clear()
+    self.enemies_defeated = 0
 
   def _require_participant(self, client: ClientConnection) -> None:
     if self.roster_locked and client.player_id not in self.participants:
@@ -416,8 +373,10 @@ class GameLoop:
       "INVALID_POSITION": "The tower position is invalid",
       "TOWER_NOT_FOUND": "The tower does not exist",
       "GAME_ALREADY_STARTED": "The game has already started",
-      "ONLY_HOST_CAN_START": "Only the player who created the game can start it",
       "MAX_TOWER_LEVEL": "That tower is already at maximum level",
+      "ONLY_HOST_CAN_START": "Solo el anfitrión puede iniciar la partida",
+      "INSUFFICIENT_PLAYERS": "Se necesitan al menos dos jugadores conectados",
+      "GAME_NOT_OVER": "La partida todavía está en curso",
     }
     return messages.get(code, "Invalid message payload")
 

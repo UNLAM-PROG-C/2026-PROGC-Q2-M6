@@ -62,35 +62,25 @@ horizontal_alignment = 1
 
 [node name="HostLabel" type="Label" parent="Panel/MarginContainer/Content"]
 layout_mode = 2
-text = "IP o dirección del servidor"
+text = "IP: pasale esto a tus amigos"
 
-[node name="HostInput" type="LineEdit" parent="Panel/MarginContainer/Content"]
+[node name="ConnectionRow" type="HBoxContainer" parent="Panel/MarginContainer/Content"]
 layout_mode = 2
-placeholder_text = "26.x.x.x:5001"
-tooltip_text = "Pegá el código que te pasó el anfitrión (IP de Radmin VPN)"
-text = ""
+theme_override_constants/separation = 8
 
-[node name="RadminInfo" type="Label" parent="Panel/MarginContainer/Content"]
+[node name="HostInput" type="LineEdit" parent="Panel/MarginContainer/Content/ConnectionRow"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.75, 0.85, 1, 1)
-theme_override_font_sizes/font_size = 12
-text = "Ambos deben estar en Radmin VPN, red: TowerDefense-UNLAM  |  clave: 1234"
-horizontal_alignment = 1
-autowrap_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "26.x.x.x:5000"
+text = "127.0.0.1:5000"
 
-[node name="PortLabel" type="Label" parent="Panel/MarginContainer/Content"]
+[node name="CopyButton" type="Button" parent="Panel/MarginContainer/Content/ConnectionRow"]
 layout_mode = 2
-text = "Server port"
-visible = false
-
-[node name="PortInput" type="LineEdit" parent="Panel/MarginContainer/Content"]
-layout_mode = 2
-placeholder_text = "5000"
-visible = false
+text = "Copiar"
 
 [node name="ConnectButton" type="Button" parent="Panel/MarginContainer/Content"]
 layout_mode = 2
-text = "Connect"
+text = "Unirse"
 
 [node name="CreatePartyButton" type="Button" parent="Panel/MarginContainer/Content"]
 layout_mode = 2
@@ -130,8 +120,6 @@ disabled = true
 
 [node name="StatusLabel" type="Label" parent="Panel/MarginContainer/Content"]
 layout_mode = 2
-text = "Not connected"
+text = "Listo para crear una partida."
 horizontal_alignment = 1
 autowrap_mode = 2
-
-

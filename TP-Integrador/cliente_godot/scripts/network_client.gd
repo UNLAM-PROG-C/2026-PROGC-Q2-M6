@@ -1,5 +1,7 @@
 extends Node
 
+const ProtocolConstants = preload("res://scripts/protocol_constants.gd")
+
 signal connection_requested(host: String, port: int)
 signal connected_to_server
 signal connection_failed(message: String)
@@ -11,6 +13,8 @@ signal wave_start_received(payload: Dictionary)
 signal countdown_received(payload: Dictionary)
 signal base_damage_received(payload: Dictionary)
 signal game_over_received(payload: Dictionary)
+signal match_reset_received
+signal match_started_received
 signal error_received(payload: Dictionary)
 signal attack_received(payload: Dictionary)
 
@@ -23,6 +27,7 @@ var _receive_buffer := PackedByteArray()
 var _was_connected := false
 var _is_connecting := false
 var _hello_sent := false
+var _connection_started_at := 0
 
 const FRAME_HEADER_SIZE: int = 4
 const MAX_FRAME_SIZE: int = 1048576
@@ -38,19 +43,27 @@ func _process(_delta: float) -> void:
 		_handle_connected()
 		_read_available_data()
 		return
-	if _was_connected and status != StreamPeerTCP.STATUS_CONNECTED:
+	if status == StreamPeerTCP.STATUS_CONNECTING:
+		if _connection_started_at > 0 and Time.get_ticks_msec() - _connection_started_at > 15000:
+			_close_connection()
+			connection_failed.emit(
+				"No se pudo conectar a %s:%d. Verificá que Radmin VPN esté en la misma red y que el anfitrión esté disponible."
+				% [server_host, server_port]
+			)
+		return
+	if _was_connected and status != StreamPeerTCP.STATUS_CONNECTING:
 		_was_connected = false
 		_is_connecting = false
 		_close_connection()
 		_tcp = null
 		disconnected_from_server.emit()
-		return
-	if _is_connecting and (status == StreamPeerTCP.STATUS_ERROR or status == StreamPeerTCP.STATUS_NONE):
-		_is_connecting = false
-		_close_connection()
-		_tcp = null
-		connection_failed.emit("The server connection failed.")
-		return
+		if status == StreamPeerTCP.STATUS_ERROR:
+			_is_connecting = false
+			_close_connection()
+			connection_failed.emit(
+			"No se pudo conectar a %s:%d. Verificá Radmin VPN, la IP y el puerto."
+			% [server_host, server_port]
+		)
 
 
 func request_connection(host: String, port: int) -> void:
@@ -66,6 +79,7 @@ func request_connection(host: String, port: int) -> void:
 	_receive_buffer.clear()
 	_hello_sent = false
 	_is_connecting = true
+	_connection_started_at = Time.get_ticks_msec()
 	var result := _tcp.connect_to_host(server_host, server_port)
 	if result != OK:
 		_is_connecting = false
@@ -88,9 +102,14 @@ func send_message(message_type: StringName, payload: Dictionary) -> void:
 	_tcp.put_data(frame)
 
 
+func is_connected_to_server() -> bool:
+	return _tcp != null and _tcp.get_status() == StreamPeerTCP.STATUS_CONNECTED
+
+
 func _handle_connected() -> void:
 	if _was_connected:
 		return
+	_connection_started_at = 0
 	_was_connected = true
 	connected_to_server.emit()
 	_hello_sent = true
@@ -150,6 +169,10 @@ func _dispatch_message(body: PackedByteArray) -> void:
 			base_damage_received.emit(payload)
 		String(ProtocolConstants.GAME_OVER):
 			game_over_received.emit(payload)
+		String(ProtocolConstants.MATCH_RESET):
+			match_reset_received.emit()
+		String(ProtocolConstants.MATCH_STARTED):
+			match_started_received.emit()
 		String(ProtocolConstants.ERROR):
 			error_received.emit(payload)
 		String(ProtocolConstants.ATTACK):
@@ -182,5 +205,7 @@ func disconnect_from_server() -> void:
 func _close_connection() -> void:
 	if _tcp != null:
 		_tcp.disconnect_from_host()
+	_tcp = null
 	_was_connected = false
+	_connection_started_at = 0
 	_is_connecting = false

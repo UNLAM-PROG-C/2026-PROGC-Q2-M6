@@ -28,5 +28,12 @@ script = ExtResource("2_input")
 
 [node name="Hud" parent="." instance=ExtResource("3_hud")]
 
-[node name="GameOver" parent="." instance=ExtResource("4_game_over")]
+[node name="RestartButton" type="Button" parent="."]
+layout_mode = 0
+offset_left = 800.0
+offset_top = 18.0
+offset_right = 950.0
+offset_bottom = 64.0
+text = "Reiniciar"
 
+[node name="GameOver" parent="." instance=ExtResource("4_game_over")]

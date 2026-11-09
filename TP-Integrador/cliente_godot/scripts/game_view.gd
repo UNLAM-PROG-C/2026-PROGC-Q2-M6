@@ -1,5 +1,7 @@
 extends Control
 
+signal restart_requested
+
 const TOWER_SCENE: PackedScene = preload("res://scenes/Tower.tscn")
 const ENEMY_SCENE: PackedScene = preload("res://scenes/Enemy.tscn")
 
@@ -12,6 +14,7 @@ var base_hp: float = 100.0
 @onready var hud: GameHud = $Hud
 @onready var entities: Node2D = $Entities
 @onready var game_over: GameOverPanel = $GameOver
+@onready var restart_button: Button = $RestartButton
 
 
 func _ready() -> void:
@@ -22,6 +25,7 @@ func _ready() -> void:
 	hud.tower_selected.connect(input_handler.select_tower)
 	input_handler.placement_rejected.connect(hud.show_error)
 	game_over.visible = false
+	restart_button.pressed.connect(_on_restart_pressed)
 	queue_redraw()
 
 
@@ -32,6 +36,10 @@ func _process(delta: float) -> void:
 		return float(effect["remaining"]) > 0.0
 	)
 	queue_redraw()
+
+
+func _on_restart_pressed() -> void:
+	restart_requested.emit()
 
 
 func _draw() -> void:
@@ -161,3 +169,4 @@ func reset_for_new_game() -> void:
 	enemy_views.clear()
 	attack_effects.clear()
 	game_over.visible = false
+	hud.reset_state()
