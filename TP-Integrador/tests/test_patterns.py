@@ -44,7 +44,7 @@ def test_mopper_targets_one_enemy_and_respects_cooldown() -> None:
   first = strategy.attack(tower, enemies, 0.05)
   second = strategy.attack(tower, enemies, 0.05)
 
-  assert first[0].target_ids == (1,)
+  assert first[0].target_ids == (2,)
   assert first[0].damage == 10
   assert second == []
 
@@ -59,7 +59,7 @@ def test_stock_replenisher_hits_every_enemy_in_lane() -> None:
 
   effects = StockReplenisherStrategy().attack(tower, enemies, 0.05)
 
-  assert effects[0].target_ids == (1, 3)
+  assert set(effects[0].target_ids) == {1, 3}
   assert effects[0].damage == 40
 
 

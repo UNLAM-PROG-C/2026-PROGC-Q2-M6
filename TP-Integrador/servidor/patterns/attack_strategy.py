@@ -63,12 +63,12 @@ class MopperStrategy(AttackStrategy):
 
 
 class StockReplenisherStrategy(AttackStrategy):
-  """Heavy attack against the nearest enemy in one lane."""
+  """Heavy line-area attack against one lane."""
 
   def attack(self, tower, enemies, elapsed_seconds) -> list[AttackEffect]:
     if not self._ready(tower, elapsed_seconds):
       return []
-    targets = self._lane_enemies(tower, enemies)[:1]
+    targets = self._lane_enemies(tower, enemies)
     return _effect_for(targets, tower.tower_type)
 
 

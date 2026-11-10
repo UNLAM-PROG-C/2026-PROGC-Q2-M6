@@ -1,6 +1,35 @@
 # Co-Tower Defense
 ## COTO: Yo te defiendo
 
+## Guía rápida: Cómo instalar, jugar y desinstalar
+
+### 1. Cómo instalar el juego
+1. Ejecutá **`TowerDefenseSetup.exe`**.
+2. Elegí qué programas adicionales querés instalar:
+   - **Instalar Radmin VPN**: necesario para todos los jugadores.
+   - **Instalar Docker Desktop**: necesario únicamente para la persona que vaya a **crear la partida** (los demás jugadores no lo necesitan).
+3. Hacé clic en **Siguiente** → **Instalar** y esperá a que termine.
+
+### 2. Cómo jugar con amigos
+1. **Conectar Radmin VPN:**
+   - Abrí **Radmin VPN** y encendelo (el botón de encendido debe figurar conectado).
+   - Un jugador crea una red (**Red → Crear red**) y los demás se unen a esa misma red (**Red → Unirse a una red existente**).
+2. **Abrir el juego:**
+   - Ejecutá el acceso directo **Co-Tower Defense** en el Escritorio (o **`CoTowerDefense.exe`**).
+3. **Crear o unirse a la partida:**
+   - **Anfitrión (Host):** presioná **Crear partida**, esperá a que aparezca *"Servidor iniciado. Esperando otros jugadores"*, tocá **Copiar** y pasale la dirección (`IP:puerto`) a tus amigos. Cuando haya **2 o más jugadores** conectados, presioná **Iniciar partida**.
+   - **Invitados:** pegá la dirección (`IP:puerto`) que te pasó tu amigo y presioná **Unirse**.
+4. **Empezar las oleadas:**
+   - Dentro de la partida, las oleadas empiezan cuando cualquiera de los jugadores coloca la primera torre.
+
+### 3. Cómo desinstalar
+1. Ejecutá **`DesinstalarTowerDefense.exe`** (o **Desinstalar Co-Tower Defense** desde el Menú Inicio).
+2. Se eliminarán todos los datos y la carpeta del juego, y te dará la opción de elegir si también querés desinstalar **Docker Desktop** y **Radmin VPN**.
+
+---
+
+## Documentación técnica
+
 El proyecto contiene un servidor TCP multihilo, un bucle de juego productor-consumidor, un cliente de red en Godot y un bot en Python para pruebas de concurrencia. El servidor TCP actúa como el proceso padre y un proceso hijo ejecutado mediante `exec` calcula patrones de oleadas deterministas a través de dos tuberías (*pipes*).
 
 ## Requisitos

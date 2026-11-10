@@ -215,8 +215,12 @@ class GameLoop:
       raise ValueError("INVALID_POSITION")
     position = tuple(raw_position)
     self.state.buy_tower(tower_type, lane, position)
+    if not self.first_tower_placed:
+      self.first_tower_placed = True
+      self.ready_event.set()
     if self.state.current_wave == 0 and not self.countdown_active:
       self._begin_first_wave_countdown()
+    self._broadcast_state()
 
   def _handle_upgrade(self, client: ClientConnection, payload: dict) -> None:
     self._require_participant(client)
@@ -295,7 +299,6 @@ class GameLoop:
   def _remove_client(self, client: ClientConnection) -> None:
     with self.server.clients_lock:
       self.clients.pop(client.player_id, None)
-      self.ready_players.discard(client.player_id)
       if client.player_id == self.host_player_id:
         self.host_player_id = min(self.clients, default=None)
     self.server.unregister(client)
@@ -341,7 +344,35 @@ class GameLoop:
       self.participants = set(self.clients)
     self.ready_event.clear()
     self.wave_complete_event.clear()
+    self.wave_start_event.clear()
+    self.countdown_active = False
+    self.countdown_generation += 1
+    self.match_reset_event.set()
     self.enemies_defeated = 0
+
+  def _begin_first_wave_countdown(self) -> None:
+    self.countdown_active = True
+    self.countdown_generation += 1
+    generation = self.countdown_generation
+    threading.Thread(
+      target=self._run_first_wave_countdown,
+      args=(generation,),
+      name="first_wave_countdown",
+      daemon=True,
+    ).start()
+
+  def _run_first_wave_countdown(self, generation: int) -> None:
+    for seconds in (3, 2, 1):
+      if generation != self.countdown_generation:
+        return
+      self.server.broadcast(COUNTDOWN, {"seconds": seconds}, self.clients)
+      if self.stop_event.wait(1.0):
+        return
+    if generation != self.countdown_generation:
+      return
+    self.server.broadcast(COUNTDOWN, {"seconds": 0, "text": "GO"}, self.clients)
+    self.ready_event.set()
+    self.wave_start_event.set()
 
   def _require_participant(self, client: ClientConnection) -> None:
     if self.roster_locked and client.player_id not in self.participants:

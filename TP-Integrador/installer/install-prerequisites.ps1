@@ -6,22 +6,9 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-
-function Ensure-Wsl {
-  Write-Step "Verificando Windows Subsystem for Linux (WSL)..."
-  $statusOutput = & wsl.exe --status 2>&1
-  if ($LASTEXITCODE -eq 0) {
-    Write-Step "WSL ya está instalado."
-    return
-  }
-
-  Write-Step "WSL no está instalado. Iniciando instalación de WSL..."
-  & wsl.exe --install --no-distribution
-  if ($LASTEXITCODE -ne 0) {
-    throw "No se pudo instalar WSL automáticamente. Ejecutá como administrador: wsl --install --no-distribution"
-  }
-  throw "WSL fue instalado, pero Windows debe reiniciarse antes de usar Docker Desktop. Reiniciá y ejecutá nuevamente el instalador."
-}
+$ProgressPreference = "SilentlyContinue"
+$temporaryRoot = Join-Path $env:TEMP "tower-defense-installer"
+New-Item -ItemType Directory -Force -Path $temporaryRoot | Out-Null
 
 function Write-Step {
   param([string]$Message)
@@ -30,18 +17,66 @@ function Write-Step {
   Add-Content -Path $LogPath -Value "[$timestamp] $Message"
 }
 
-function Install-WingetPackage {
+function Download-File {
+  param(
+    [Parameter(Mandatory = $true)][string]$Url,
+    [Parameter(Mandatory = $true)][string]$Destination
+  )
+  if ((Test-Path $Destination) -and ((Get-Item $Destination).Length -gt 1048576)) {
+    Write-Step "Archivo en caché encontrado: $Destination"
+    return
+  }
+  Write-Step "Descargando $Url..."
+  $webClient = New-Object System.Net.WebClient
+  $webClient.DownloadFile($Url, $Destination)
+  Write-Step "Descarga completada."
+}
+
+function Ensure-Wsl {
+  Write-Step "Verificando Windows Subsystem for Linux (WSL)..."
+  $previousPreference = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
+  try {
+    & wsl.exe --status 2>$null 1>$null
+    if ($LASTEXITCODE -eq 0) {
+      Write-Step "WSL ya está instalado."
+      return
+    }
+  } finally {
+    $ErrorActionPreference = $previousPreference
+  }
+
+  Write-Step "WSL no está instalado. Iniciando instalación de WSL..."
+  & wsl.exe --install --no-distribution
+  if ($LASTEXITCODE -ne 0) {
+    throw "No se pudo instalar WSL automáticamente. Ejecutá como administrador: wsl --install --no-distribution"
+  }
+  Write-Step "WSL fue instalado. Puede requerir reiniciar Windows antes de iniciar Docker Desktop."
+}
+
+function Try-InstallWingetPackage {
   param(
     [Parameter(Mandatory = $true)][string]$Id,
     [Parameter(Mandatory = $true)][string]$Name
   )
-
-  Write-Step "Instalando $Name..."
-  & winget install --id $Id --exact --silent --accept-package-agreements --accept-source-agreements
-  if ($LASTEXITCODE -ne 0) {
-    throw "No se pudo instalar $Name mediante winget. Código: $LASTEXITCODE."
+  $winget = Get-Command winget -ErrorAction SilentlyContinue
+  if (-not $winget) {
+    return $false
   }
-  Write-Step "$Name instalado."
+  Write-Step "Instalando $Name mediante winget..."
+  $previousPreference = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
+  try {
+    & winget install --id $Id --exact --silent --accept-package-agreements --accept-source-agreements
+    if ($LASTEXITCODE -eq 0) {
+      Write-Step "$Name instalado mediante winget."
+      return $true
+    }
+  } catch {
+  } finally {
+    $ErrorActionPreference = $previousPreference
+  }
+  return $false
 }
 
 function Get-RadminVpnPath {
@@ -55,6 +90,15 @@ function Get-RadminVpnPath {
     "$env:LOCALAPPDATA\Programs\Radmin VPN\RadminVPN.exe"
   )
   return $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+}
+
+function Install-RadminVpnDirect {
+  $radminInstaller = Join-Path $temporaryRoot "Radmin_VPN.exe"
+  Download-File `
+    -Url "https://download.radmin-vpn.com/download/files/Radmin_VPN_2.1.4951.1.exe" `
+    -Destination $radminInstaller
+  Write-Step "Ejecutando instalador oficial de Radmin VPN..."
+  Start-Process -FilePath $radminInstaller -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/SP-" -Wait
 }
 
 function New-RadminShortcut {
@@ -73,6 +117,7 @@ function New-RadminShortcut {
   $shell = New-Object -ComObject WScript.Shell
   $shortcut = $shell.CreateShortcut("$env:PUBLIC\Desktop\Radmin VPN.lnk")
   $shortcut.TargetPath = $path
+  $shortcut.Arguments = "/show"
   $shortcut.WorkingDirectory = Split-Path -Parent $path
   $shortcut.Save()
   Write-Step "Acceso directo de Radmin VPN creado en el escritorio público."
@@ -108,46 +153,43 @@ function Test-DockerDesktopInstalled {
   return [bool]$installed
 }
 
-function Start-And-Verify-Docker {
-  Write-Step "Verificando Docker Desktop..."
-  & docker info *> $null
-  if ($LASTEXITCODE -ne 0) {
-    $dockerDesktop = Get-DockerDesktopPath
-    if ($dockerDesktop) {
-      Write-Step "Iniciando Docker Desktop..."
-      Start-Process -FilePath $dockerDesktop
-    } else {
-      $appx = Get-AppxPackage -Name "*DockerDesktop*" -ErrorAction SilentlyContinue |
-        Select-Object -First 1
-      if ($appx) {
-        Write-Step "Iniciando Docker Desktop desde Microsoft Store..."
-        Start-Process "shell:AppsFolder\$($appx.PackageFamilyName)!App"
-      } else {
-        throw "Docker Desktop está instalado, pero no se pudo localizar para iniciarlo."
-      }
-    }
-  }
+function Install-DockerDesktopDirect {
+  $dockerInstaller = Join-Path $temporaryRoot "DockerDesktopInstaller.exe"
+  Download-File `
+    -Url "https://desktop.docker.com/win/main/amd64/Docker%20Desktop%20Installer.exe" `
+    -Destination $dockerInstaller
+  Write-Step "Ejecutando instalador oficial de Docker Desktop..."
+  Start-Process -FilePath $dockerInstaller -ArgumentList "install", "--quiet" -Wait
+}
 
-  $deadline = (Get-Date).AddSeconds(120)
-  do {
-    Start-Sleep -Seconds 2
-    & docker info *> $null
-  } while ($LASTEXITCODE -ne 0 -and (Get-Date) -lt $deadline)
-  if ($LASTEXITCODE -ne 0) {
-    throw "Docker Desktop se instaló, pero el daemon no inició dentro de 120 segundos."
+function Ensure-FirewallRule {
+  Write-Step "Configurando regla de Firewall de Windows (TCP 5000-5100)..."
+  $previousPreference = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
+  try {
+    & netsh advfirewall firewall delete rule name="Tower Defense Local" 2>$null | Out-Null
+    & netsh advfirewall firewall add rule name="Tower Defense Local" dir=in action=allow protocol=TCP localport=5000-5100 profile=any | Out-Null
+    Write-Step "Regla de Firewall configurada."
+  } finally {
+    $ErrorActionPreference = $previousPreference
   }
-  & docker compose version *> $null
-  if ($LASTEXITCODE -ne 0) {
-    throw "Docker Compose no está disponible después de instalar Docker Desktop."
-  }
-  Write-Step "Docker Desktop y Compose están operativos."
 }
 
 New-Item -ItemType Directory -Force -Path (Split-Path -Parent $LogPath) | Out-Null
-Write-Step "Iniciando instalación de requisitos."
+Write-Step "Iniciando configuración e instalación de componentes..."
 
-if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
-  throw "Windows Package Manager (winget) no está disponible."
+Ensure-FirewallRule
+
+if ($InstallRadminVpn) {
+  if (Get-RadminVpnPath) {
+    Write-Step "Radmin VPN ya está instalado. Se omite la instalación."
+  } else {
+    $ok = Try-InstallWingetPackage -Id "Famatech.RadminVPN" -Name "Radmin VPN"
+    if (-not $ok -and -not (Get-RadminVpnPath)) {
+      Install-RadminVpnDirect
+    }
+  }
+  New-RadminShortcut
 }
 
 if ($InstallDocker) {
@@ -155,19 +197,11 @@ if ($InstallDocker) {
   if (Test-DockerDesktopInstalled) {
     Write-Step "Docker Desktop ya está instalado. Se omite la instalación."
   } else {
-    Install-WingetPackage -Id "Docker.DockerDesktop" -Name "Docker Desktop"
+    $ok = Try-InstallWingetPackage -Id "Docker.DockerDesktop" -Name "Docker Desktop"
+    if (-not $ok -and -not (Test-DockerDesktopInstalled)) {
+      Install-DockerDesktopDirect
+    }
   }
-  Start-And-Verify-Docker
-}
-
-if ($InstallRadminVpn) {
-  $radminInstalled = Get-RadminVpnPath
-  if ($radminInstalled) {
-    Write-Step "Radmin VPN ya está instalado. Se omite la instalación."
-  } else {
-    Install-WingetPackage -Id "Famatech.RadminVPN" -Name "Radmin VPN"
-  }
-  New-RadminShortcut
 }
 
 Write-Step "Instalación finalizada correctamente."

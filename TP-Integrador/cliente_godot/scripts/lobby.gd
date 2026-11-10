@@ -30,10 +30,11 @@ const MAX_PLAYERS := 4
 
 func _ready() -> void:
 	connect_button.pressed.connect(_on_connect_pressed)
-	create_party_button.pressed.connect(_on_start_pressed)
+	create_party_button.pressed.connect(_on_create_party_pressed)
 	copy_button.pressed.connect(_on_copy_pressed)
-	start_button.pressed.connect(_on_start_pressed)
-	start_button.disabled = false
+	start_button.pressed.connect(_on_start_match_pressed)
+	start_button.visible = false
+	start_button.disabled = true
 	status_label.text = "Listo para crear una partida."
 	NetworkClient.connection_requested.connect(_on_connection_requested)
 	NetworkClient.connected_to_server.connect(_on_connected)
@@ -63,12 +64,7 @@ func _on_connect_pressed() -> void:
 		return
 	var host: String = connection[0]
 	var port: int = connection[1]
-	if _vpn_activation_required:
-		_vpn_activation_required = false
-		connect_button.disabled = true
-		status_label.text = "Conectando a %s:%d..." % [host, port]
-		NetworkClient.request_connection(host, port)
-		return
+	_vpn_activation_required = false
 	_start_vpn_for_join(host, port)
 
 
@@ -80,7 +76,7 @@ func _on_copy_pressed() -> void:
 
 
 func _on_connection_requested(host: String, port: int) -> void:
-	if not _is_creating_party:
+	if not _creating_game:
 		status_label.text = "Conectando a %s:%d..." % [host, port]
 
 
@@ -95,17 +91,23 @@ func _on_connected() -> void:
 
 func _on_connection_failed(message: String) -> void:
 	_joining_vpn = false
+	_creating_game = false
+	_starting_docker = false
 	connect_button.disabled = false
-	start_button.disabled = false
+	create_party_button.disabled = false
+	start_button.visible = false
+	start_button.disabled = true
 	status_label.text = message
-	connect_button.disabled = false
 
 
 func _on_disconnected() -> void:
-	status_label.text = "Disconnected"
+	status_label.text = "Desconectado del servidor."
+	start_button.visible = false
 	start_button.disabled = true
 	connect_button.disabled = false
-	start_button.disabled = false
+	create_party_button.disabled = false
+	_is_host = false
+	_players_count = 0
 
 
 func _on_welcome(payload: Dictionary) -> void:
@@ -114,11 +116,13 @@ func _on_welcome(payload: Dictionary) -> void:
 	_players_count = int(payload.get("players", _players_count))
 	_minimum_players = int(payload.get("min_players", _minimum_players))
 	if _is_host:
-		status_label.text = "%s\nPartida creada. Esperando jugadores.\nJugadores activos: %d/%d" % [
-			_share_message, _players_count, MAX_PLAYERS
+		start_button.visible = true
+		status_label.text = "Servidor iniciado. Esperando otros jugadores.\nJugadores activos: %d/%d" % [
+			_players_count, MAX_PLAYERS
 		]
 		start_button.text = "Iniciar partida"
 	else:
+		start_button.visible = false
 		status_label.text = "Unido a la partida. Esperando que el anfitrión inicie.\nJugadores activos: %d/%d" % [
 			_players_count, MAX_PLAYERS
 		]
@@ -136,33 +140,26 @@ func _update_start_button() -> void:
 	)
 
 
-func _on_start_pressed() -> void:
+func _on_create_party_pressed() -> void:
 	status_label.text = "Preparando la partida..."
-	if _vpn_activation_required:
-		_vpn_activation_required = false
-		if _is_host:
-			_start_docker()
-		else:
-			connect_button.disabled = true
-			status_label.text = "Conectando a %s:%d..." % [_pending_join_host, _pending_join_port]
-			NetworkClient.request_connection(_pending_join_host, _pending_join_port)
+	_vpn_activation_required = false
+	create_party_button.disabled = true
+	connect_button.disabled = true
+	_creating_game = true
+	_is_host = true
+	_start_vpn()
+
+
+func _on_start_match_pressed() -> void:
+	if not _is_host:
 		return
-	if NetworkClient.server_host.is_empty():
-		status_label.text = "Enter a valid host first."
-		return
-	if not NetworkClient.is_connected_to_server():
-		_start_local_stack()
-		return
-	if _is_host:
-		if _players_count < 2:
-			status_label.text = "Esperando al menos 2 jugadores para iniciar."
-			start_button.disabled = true
-			return
-		NetworkClient.send_message(ProtocolConstants.START_GAME, {})
+	if _players_count < _minimum_players:
+		status_label.text = "Se necesitan al menos %d jugadores para iniciar la partida." % _minimum_players
 		start_button.disabled = true
-		status_label.text = "Iniciando partida para todos..."
-	else:
-		status_label.text = "Esperando que el anfitrión inicie la partida..."
+		return
+	NetworkClient.send_message(ProtocolConstants.START_GAME, {})
+	start_button.disabled = true
+	status_label.text = "Iniciando partida para todos..."
 
 
 func _send_ready() -> void:
@@ -186,18 +183,22 @@ func _start_vpn() -> void:
 	if not FileAccess.file_exists(script_path):
 		_creating_game = false
 		_joining_vpn = false
-		status_label.text = "No se encontró el script de inicio de Radmin VPN: %s" % script_path
+		create_party_button.disabled = false
+		connect_button.disabled = false
+		status_label.text = "Error en Radmin VPN: No se encontró el script de inicio: %s" % script_path
 		return
 	if _creating_game:
 		_ready_after_stack = true
-		start_button.disabled = true
 	else:
 		_joining_vpn = true
+	create_party_button.disabled = true
 	connect_button.disabled = true
 	status_label.text = "Iniciando Radmin VPN..."
 	_clear_stack_status()
 	_stack_process_id = OS.create_process("powershell.exe", [
 		"-NoProfile",
+		"-WindowStyle",
+		"Hidden",
 		"-ExecutionPolicy",
 		"Bypass",
 		"-File",
@@ -213,9 +214,9 @@ func _start_vpn() -> void:
 		_is_host = false
 		_creating_game = false
 		_joining_vpn = false
+		create_party_button.disabled = false
 		connect_button.disabled = false
-		start_button.disabled = false
-		status_label.text = "No se pudo iniciar Radmin VPN."
+		status_label.text = "Error en Radmin VPN: No se pudo iniciar el proceso."
 
 
 func _start_vpn_for_join(host: String, port: int) -> void:
@@ -231,17 +232,20 @@ func _start_docker() -> void:
 	if not FileAccess.file_exists(script_path):
 		_creating_game = false
 		_ready_after_stack = false
+		create_party_button.disabled = false
 		connect_button.disabled = false
-		start_button.disabled = false
-		status_label.text = "No se encontró el script de inicio de Docker: %s" % script_path
+		status_label.text = "Error en Docker: No se encontró el script de inicio: %s" % script_path
 		return
 	_starting_docker = true
+	create_party_button.disabled = true
 	connect_button.disabled = true
 	start_button.disabled = true
-	status_label.text = "Radmin VPN iniciado. Iniciando Docker y servidor..."
+	status_label.text = "Radmin VPN conectado. Iniciando Docker y servidor en segundo plano..."
 	_clear_stack_status()
 	_stack_process_id = OS.create_process("powershell.exe", [
 		"-NoProfile",
+		"-WindowStyle",
+		"Hidden",
 		"-ExecutionPolicy",
 		"Bypass",
 		"-File",
@@ -255,20 +259,24 @@ func _start_docker() -> void:
 	_stack_started_at = Time.get_ticks_msec()
 	if _stack_process_id < 0:
 		_stack_process_id = -1
-	_starting_docker = false
-	_creating_game = false
-	_ready_after_stack = false
-	_is_host = false
-	connect_button.disabled = false
-	start_button.disabled = false
-	status_label.text = "No se pudo iniciar Docker. Revisá que Docker Desktop esté instalado."
+		_starting_docker = false
+		_creating_game = false
+		_ready_after_stack = false
+		_is_host = false
+		create_party_button.disabled = false
+		connect_button.disabled = false
+		status_label.text = "Error en Docker: No se pudo iniciar el proceso. Revisá que Docker Desktop esté instalado."
 
 
 func _find_stack_script() -> String:
 	var project_script := ProjectSettings.globalize_path("res://../start-stack.ps1")
 	if FileAccess.file_exists(project_script):
 		return project_script
-	var executable_root := OS.get_executable_path().get_base_dir().get_base_dir()
+	var executable_dir := OS.get_executable_path().get_base_dir()
+	var local_script := executable_dir.path_join("start-stack.ps1")
+	if FileAccess.file_exists(local_script):
+		return local_script
+	var executable_root := executable_dir.get_base_dir()
 	return executable_root.path_join("start-stack.ps1")
 
 
@@ -327,11 +335,12 @@ func _poll_stack_status() -> void:
 		_vpn_activation_required = true
 		_joining_vpn = false
 		connect_button.disabled = false
-		start_button.disabled = false
-		status_label.text = "Radmin VPN está desconectado. Encendé el botón naranja y volvé a intentar."
+		create_party_button.disabled = false
+		start_button.disabled = true
+		status_label.text = "Radmin VPN está desconectado. Por favor conecte el VPN y vuelva a intentar."
 		OS.alert(
-			"Radmin VPN está desconectado.\n\nEncendé el botón naranja en Radmin VPN y luego presioná nuevamente el botón del juego.",
-			"Activar Radmin VPN"
+			"Por favor conecte el VPN.\n\nEncienda el botón en Radmin VPN y vuelva a intentar.",
+			"Radmin VPN"
 		)
 		return
 	if state == "ready":
@@ -339,6 +348,7 @@ func _poll_stack_status() -> void:
 		_starting_docker = false
 		_is_host = true
 		connect_button.disabled = false
+		create_party_button.disabled = false
 		_share_message = message
 		_connection_code = _connection_code_from_status(message)
 		if _connection_code.is_empty():
@@ -348,9 +358,9 @@ func _poll_stack_status() -> void:
 			status_label.text = "El servidor inició, pero no devolvió una dirección IP:puerto válida."
 			return
 		host_input.text = _connection_code
-		status_label.text = _share_message
+		status_label.text = "Servidor iniciado. Conectando..."
 		var connection := _parse_connection_code(_connection_code)
-		NetworkClient.request_connection(connection[0], connection[1])
+		NetworkClient.request_connection("127.0.0.1", connection[1])
 	elif state == "error":
 		_stack_process_id = -1
 		_ready_after_stack = false
@@ -359,8 +369,9 @@ func _poll_stack_status() -> void:
 		_creating_game = false
 		_starting_docker = false
 		connect_button.disabled = false
-		start_button.disabled = false
-		status_label.text = "No se pudo iniciar: %s" % message
+		create_party_button.disabled = false
+		start_button.disabled = true
+		status_label.text = message
 
 
 func _parse_connection_code(value: String) -> Array:
@@ -429,8 +440,11 @@ func reset_lobby() -> void:
 	_vpn_activation_required = false
 	_game_started = false
 	_players_count = 0
-	start_button.text = "Crear partida"
-	start_button.disabled = false
+	start_button.text = "Iniciar partida"
+	start_button.visible = false
+	start_button.disabled = true
+	create_party_button.disabled = false
+	connect_button.disabled = false
 	status_label.text = "Partida reiniciada. Podés crear o unirte nuevamente."
 
 

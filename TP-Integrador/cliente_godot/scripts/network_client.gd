@@ -103,7 +103,7 @@ func send_message(message_type: StringName, payload: Dictionary) -> void:
 
 
 func is_connected_to_server() -> bool:
-	return _tcp != null and _tcp.get_status() == StreamPeerTCP.STATUS_CONNECTED
+	return _was_connected and _tcp != null and _tcp.get_status() == StreamPeerTCP.STATUS_CONNECTED
 
 
 func _handle_connected() -> void:
@@ -158,6 +158,8 @@ func _dispatch_message(body: PackedByteArray) -> void:
 	message_received.emit(message)
 	match String(message_type):
 		String(ProtocolConstants.WELCOME):
+			player_id = int(payload.get("player_id", player_id))
+			is_host = bool(payload.get("is_host", is_host))
 			welcome_received.emit(payload)
 		String(ProtocolConstants.STATE_UPDATE):
 			state_update_received.emit(payload)
@@ -192,9 +194,6 @@ func _encode_frame(body: PackedByteArray) -> PackedByteArray:
 func _decode_u32(bytes: PackedByteArray) -> int:
 	return (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3]
 
-
-func is_connected_to_server() -> bool:
-	return _was_connected and _tcp != null and _tcp.get_status() == StreamPeerTCP.STATUS_CONNECTED
 
 
 func disconnect_from_server() -> void:

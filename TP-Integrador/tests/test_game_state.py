@@ -36,6 +36,7 @@ def test_game_state_buys_and_serializes_a_tower() -> None:
   assert state.snapshot()["towers"] == [{
     "tower_id": 1,
     "tower_type": "MOPPER",
+    "level": 1,
     "lane": 1,
     "pos": [100.0, 200.0],
   }]
