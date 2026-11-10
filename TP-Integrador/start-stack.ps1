@@ -272,18 +272,48 @@ function Start-Server {
   Set-Status "server" "running" "Verificando el servidor existente..."
   Push-Location $root
   try {
-    $existingContainer = (& docker compose ps -q server 2>$null | Select-Object -First 1)
+    $previousPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+      $existingContainer = (& docker compose ps -q server 2>$null | Select-Object -First 1)
+    } finally {
+      $ErrorActionPreference = $previousPreference
+    }
     if ($existingContainer) {
       $existingContainer = ([string]$existingContainer).Trim()
     }
     if ($existingContainer) {
-      $running = (& docker inspect --format "{{.State.Running}}" $existingContainer 2>$null).Trim()
-      if ($running -eq "true" -and (Test-NetConnection -ComputerName "127.0.0.1" -Port $Port -InformationLevel Quiet)) {
-        Set-Status "server" "running" "El servidor ya esta iniciado. Se reutiliza el contenedor existente."
+      $previousPreference = $ErrorActionPreference
+      $ErrorActionPreference = "Continue"
+      try {
+        $running = ([string](& docker inspect --format "{{.State.Running}}" $existingContainer 2>$null)).Trim()
+      } finally {
+        $ErrorActionPreference = $previousPreference
+      }
+      if ($running -eq "true") {
+        Set-Status "server" "running" "El servidor ya esta iniciado. Reiniciando partida limpia..."
+        $previousPreference = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
+        try {
+          & docker compose restart -t 1 server 2>$null 1>$null
+          $restartExitCode = $LASTEXITCODE
+        } finally {
+          $ErrorActionPreference = $previousPreference
+        }
+        if ($restartExitCode -ne 0) {
+          throw "Error en el servidor: No se pudo reiniciar el contenedor existente."
+        }
       } else {
         Set-Status "server" "running" "El servidor existe, pero no esta listo. Iniciandolo..."
-        & docker compose start server 2>&1 | Out-Null
-        if ($LASTEXITCODE -ne 0) {
+        $previousPreference = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
+        try {
+          & docker compose start server 2>$null 1>$null
+          $startExitCode = $LASTEXITCODE
+        } finally {
+          $ErrorActionPreference = $previousPreference
+        }
+        if ($startExitCode -ne 0) {
           throw "Error en el servidor: No se pudo iniciar el contenedor existente."
         }
       }

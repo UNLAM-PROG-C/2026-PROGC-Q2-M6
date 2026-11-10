@@ -25,7 +25,7 @@
    - Cuando haya **2 o más jugadores** conectados, se habilitará el botón **Iniciar partida**. Presionalo para comenzar.
 3. **Si te unís a la partida de un amigo:**
    - Pegá la dirección (`IP:puerto`) que te pasó tu amigo en el cuadro de texto.
-   - Presioná **Unirse** y esperá a que el anfitrión inicie la partida.
+   - Presioná **Unirse** y esperá a que el anfitrión inicie la partida.|
 4. **Inicio de las oleadas:**
    - Una vez dentro del mapa, la primera oleada comienza automáticamente cuando cualquiera de los jugadores coloca la primera torre.
 

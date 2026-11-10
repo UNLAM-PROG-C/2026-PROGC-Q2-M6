@@ -307,12 +307,39 @@ class GameLoop:
       self.clients.pop(client.player_id, None)
       if client.player_id == self.host_player_id:
         self.host_player_id = min(self.clients, default=None)
+      is_empty = len(self.clients) == 0
     self.server.unregister(client)
     self.server.close_connection(client)
-    self._broadcast_lobby_status()
+    if is_empty:
+      self._reset_to_lobby()
+    else:
+      self._broadcast_lobby_status()
+
+  def _reset_to_lobby(self) -> None:
+    was_running = self.roster_locked or self.state.current_wave > 0
+    self.state.reset_match()
+    while not self.enemy_queue.empty():
+      try:
+        self.enemy_queue.get_nowait()
+      except queue.Empty:
+        break
+    self.game_over_sent = False
+    self.start_requested = False
+    self.first_tower_placed = False
+    self.roster_locked = False
+    self.participants.clear()
+    self.ready_event.clear()
+    self.wave_complete_event.clear()
+    self.wave_start_event.clear()
+    self.countdown_active = False
+    self.countdown_generation += 1
+    if was_running:
+      self.match_reset_event.set()
+    self.enemies_defeated = 0
 
   def _add_client(self, client: ClientConnection) -> None:
     with self.server.clients_lock:
+      was_empty = len(self.clients) == 0
       if len(self.clients) >= MAX_PLAYERS:
         reject = True
       else:
@@ -326,6 +353,8 @@ class GameLoop:
       timer.daemon = True
       timer.start()
       return
+    if was_empty and (self.roster_locked or self.state.current_wave > 0):
+      self._reset_to_lobby()
     if self.host_player_id is None:
       self.host_player_id = client.player_id
     self._broadcast_lobby_status()

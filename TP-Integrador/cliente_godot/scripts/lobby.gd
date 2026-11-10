@@ -161,29 +161,26 @@ func _on_welcome(payload: Dictionary) -> void:
 	_is_host = bool(payload.get("is_host", _is_host))
 	_game_started = bool(payload.get("game_started", false))
 	_players_count = int(payload.get("players", _players_count))
-	_minimum_players = int(payload.get("min_players", _minimum_players))
+	_minimum_players = 2
 	if _is_host:
 		host_label.text = "IP: pasale esto a tus amigos"
 		start_button.visible = true
-		status_label.text = "Servidor iniciado. Esperando otros jugadores.\nJugadores activos: %d/%d" % [
+		status_label.text = "Servidor iniciado. Esperando otros jugadores.\nJugadores conectados: %d/%d" % [
 			_players_count, MAX_PLAYERS
 		]
 		start_button.text = "Iniciar partida"
 	else:
 		start_button.visible = false
-		status_label.text = "Unido a la partida. Esperando que el anfitrion inicie.\nJugadores activos: %d/%d" % [
+		status_label.text = "Esperando a que el host inicie la partida.\nJugadores conectados: %d/%d" % [
 			_players_count, MAX_PLAYERS
 		]
-		if _game_started:
-			status_label.text = "La partida esta comenzando..."
 	_update_start_button()
 
 
 func _update_start_button() -> void:
 	start_button.disabled = (
 		not _is_host
-		or _players_count < _minimum_players
-		or _game_started
+		or _players_count < 2
 		or not NetworkClient.is_connected_to_server()
 	)
 
@@ -492,30 +489,20 @@ func show_waiting_for_start() -> void:
 	visible = true
 
 
-func _on_state_update(payload: Dictionary) -> void:
-	if _is_host or not _share_message.is_empty():
-		return
-	if int(payload.get("current_wave", 0)) == 0:
-		return
-	status_label.text = "Wave %s | Gold %s | Base %s" % [
-		payload.get("current_wave", 0),
-		payload.get("gold", 0),
-		payload.get("base_hp", 0),
-	]
+func _on_state_update(_payload: Dictionary) -> void:
+	pass
 
 
-func _on_wave_start(payload: Dictionary) -> void:
-	status_label.text = "Wave %s started" % payload.get("wave", "?")
+func _on_wave_start(_payload: Dictionary) -> void:
+	pass
 
 
-func _on_base_damage(payload: Dictionary) -> void:
-	status_label.text = "Base damaged: %s HP left" % payload.get("base_hp", "?")
+func _on_base_damage(_payload: Dictionary) -> void:
+	pass
 
 
-func _on_game_over(payload: Dictionary) -> void:
-	status_label.text = "%s: %s" % [
-		payload.get("result", "GAME OVER"), payload.get("reason", "")
-	]
+func _on_game_over(_payload: Dictionary) -> void:
+	pass
 
 
 func reset_lobby() -> void:
