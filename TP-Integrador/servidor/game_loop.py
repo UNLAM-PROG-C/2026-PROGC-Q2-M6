@@ -167,12 +167,18 @@ class GameLoop:
       self._send_error(client, code, self._error_message(code))
 
   def _handle_hello(self, client: ClientConnection, payload: dict) -> None:
+    with self.server.clients_lock:
+      if client.player_id not in self.clients:
+        player_count = -1
+      else:
+        player_count = len(self.clients)
+    if player_count < 0:
+      self._send_error(client, "MAX_PLAYERS", "Servidor lleno (4/4 jugadores).")
+      return
     name = payload.get("name", f"player-{client.player_id}")
     if not isinstance(name, str) or not name.strip():
       raise ValueError("INVALID_NAME")
     client.name = name.strip()
-    with self.server.clients_lock:
-      player_count = len(self.clients)
     self.server.send(client, WELCOME, {
       "player_id": client.player_id,
       "players": player_count,
@@ -315,8 +321,10 @@ class GameLoop:
           self.host_player_id = client.player_id
         reject = False
     if reject:
-      self._send_error(client, "MAX_PLAYERS", "The game is full")
-      self.server.close_connection(client)
+      self._send_error(client, "MAX_PLAYERS", "Servidor lleno (4/4 jugadores).")
+      timer = threading.Timer(0.3, self.server.close_connection, args=(client,))
+      timer.daemon = True
+      timer.start()
       return
     if self.host_player_id is None:
       self.host_player_id = client.player_id

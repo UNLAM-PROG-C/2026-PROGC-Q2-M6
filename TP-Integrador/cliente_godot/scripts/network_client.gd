@@ -47,22 +47,27 @@ func _process(_delta: float) -> void:
 		if _connection_started_at > 0 and Time.get_ticks_msec() - _connection_started_at > 15000:
 			_close_connection()
 			connection_failed.emit(
-				"No se pudo conectar a %s:%d. Verificá que Radmin VPN esté en la misma red y que el anfitrión esté disponible."
-				% [server_host, server_port]
+				"No se pudo conectar a %s:%d." % [server_host, server_port]
 			)
 		return
 	if _was_connected and status != StreamPeerTCP.STATUS_CONNECTING:
+		_read_available_data()
 		_was_connected = false
 		_is_connecting = false
 		_close_connection()
 		_tcp = null
 		disconnected_from_server.emit()
 		if status == StreamPeerTCP.STATUS_ERROR:
-			_is_connecting = false
-			_close_connection()
 			connection_failed.emit(
-			"No se pudo conectar a %s:%d. Verificá Radmin VPN, la IP y el puerto."
-			% [server_host, server_port]
+				"No se pudo conectar a %s:%d." % [server_host, server_port]
+			)
+		return
+	if _is_connecting and status != StreamPeerTCP.STATUS_CONNECTING:
+		_is_connecting = false
+		_close_connection()
+		_tcp = null
+		connection_failed.emit(
+			"No se pudo conectar a %s:%d." % [server_host, server_port]
 		)
 
 

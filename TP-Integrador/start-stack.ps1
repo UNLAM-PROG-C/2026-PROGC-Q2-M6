@@ -43,7 +43,7 @@ function Set-Status {
       return
     } catch {
       if ($attempt -eq 19) {
-        throw "No se pudo actualizar el estado de inicio porque el archivo está bloqueado: $StatusPath. Detalle: $($_.Exception.Message)"
+        throw "No se pudo actualizar el estado de inicio porque el archivo esta bloqueado: $StatusPath. Detalle: $($_.Exception.Message)"
       }
       Start-Sleep -Milliseconds 100
     }
@@ -105,7 +105,7 @@ public class Win32Window {
 function Show-RadminVpnWindow {
   $path = Find-RadminVpn
   if (-not $path) {
-    throw "Error en Radmin VPN: No está instalado. Instalalo y reintentá."
+    throw "Error en Radmin VPN: No esta instalado. Instalalo y reintenta."
   }
   Initialize-Win32Window
   Start-Process -FilePath $path -ArgumentList "/show" -WindowStyle Normal
@@ -157,7 +157,7 @@ function Ensure-RadminVpn {
   Set-Status "vpn" "running" "Verificando Radmin VPN..."
   $vpnService = Get-Service -Name "RvControlSvc" -ErrorAction SilentlyContinue
   if (-not $vpnService) {
-    throw "Error en Radmin VPN: No se encontró el servicio RvControlSvc. Reinstalá Radmin VPN."
+    throw "Error en Radmin VPN: No se encontro el servicio RvControlSvc. Reinstala Radmin VPN."
   }
   if ($vpnService.Status -ne "Running") {
     Set-Status "vpn" "running" "Iniciando servicio de Radmin VPN..."
@@ -179,12 +179,12 @@ function Ensure-RadminVpn {
   }
 
   if (-not (Test-RadminPowerOn)) {
-    Set-Status "vpn" "vpn_needs_activation" "Radmin VPN está desconectado. Por favor conecte el VPN y vuelva a intentar."
+    Set-Status "vpn" "vpn_needs_activation" "Radmin VPN esta desconectado. Por favor conecte el VPN y vuelva a intentar."
     return $false
   }
 
   $vpnIp = Get-RadminVpnIp
-  Set-Status "vpn" "vpn_ready" "Radmin VPN está conectado."
+  Set-Status "vpn" "vpn_ready" "Radmin VPN esta conectado."
   return $true
 }
 
@@ -192,18 +192,18 @@ function Ensure-Docker {
   Set-Status "docker" "running" "Verificando Docker Desktop..."
   $dockerCommand = Get-Command docker -ErrorAction SilentlyContinue
   if (-not $dockerCommand) {
-    throw "Error en Docker: Docker no está instalado. Ejecutá el instalador y seleccioná Docker Desktop."
+    throw "Error en Docker: Docker no esta instalado. Ejecuta el instalador y selecciona Docker Desktop."
   }
 
   $daemonReady = Test-DockerDaemon
   $startedByScript = $false
   if (-not $daemonReady) {
     if (-not (Test-Wsl)) {
-      throw "Error en Docker: WSL no está instalado o no está habilitado. Ejecutá como administrador: wsl --install --no-distribution; luego reiniciá Windows."
+      throw "Error en Docker: WSL no esta instalado o no esta habilitado. Ejecuta como administrador: wsl --install --no-distribution; luego reinicia Windows."
     }
     $dockerDesktop = Find-DockerDesktop
     if (-not $dockerDesktop) {
-      throw "Error en Docker: Docker Desktop está instalado, pero no se encontró su ejecutable para iniciarlo."
+      throw "Error en Docker: Docker Desktop esta instalado, pero no se encontro su ejecutable para iniciarlo."
     }
     Set-Status "docker" "running" "Iniciando Docker Desktop en segundo plano y esperando al daemon..."
     Disable-DockerStartupUi
@@ -228,12 +228,12 @@ function Ensure-Docker {
     Hide-DockerDesktopWindows
   }
   if (-not $daemonReady) {
-    throw "Error en Docker: Docker Desktop no pudo iniciar el daemon. Abrí Docker Desktop y esperá a que indique que está listo."
+    throw "Error en Docker: Docker Desktop no pudo iniciar el daemon. Abri Docker Desktop y espera a que indique que esta listo."
   }
   if (-not (Test-DockerCompose)) {
-    throw "Error en Docker: Docker Compose no está disponible."
+    throw "Error en Docker: Docker Compose no esta disponible."
   }
-  Set-Status "docker" "ok" "Docker Desktop y Compose están disponibles."
+  Set-Status "docker" "ok" "Docker Desktop y Compose estan disponibles."
 }
 
 function Find-DockerDesktop {
@@ -279,16 +279,16 @@ function Start-Server {
     if ($existingContainer) {
       $running = (& docker inspect --format "{{.State.Running}}" $existingContainer 2>$null).Trim()
       if ($running -eq "true" -and (Test-NetConnection -ComputerName "127.0.0.1" -Port $Port -InformationLevel Quiet)) {
-        Set-Status "server" "running" "El servidor ya está iniciado. Se reutiliza el contenedor existente."
+        Set-Status "server" "running" "El servidor ya esta iniciado. Se reutiliza el contenedor existente."
       } else {
-        Set-Status "server" "running" "El servidor existe, pero no está listo. Iniciándolo..."
+        Set-Status "server" "running" "El servidor existe, pero no esta listo. Iniciandolo..."
         & docker compose start server 2>&1 | Out-Null
         if ($LASTEXITCODE -ne 0) {
           throw "Error en el servidor: No se pudo iniciar el contenedor existente."
         }
       }
     } else {
-      Set-Status "server" "running" "El servidor no existe. Creándolo e iniciándolo..."
+      Set-Status "server" "running" "El servidor no existe. Creandolo e iniciandolo..."
       $composeExitCode = 1
       $composeOutput = @()
       $composeDeadline = (Get-Date).AddSeconds(30)
@@ -324,11 +324,11 @@ function Start-Server {
 
   $ready = Test-NetConnection -ComputerName "127.0.0.1" -Port $Port -InformationLevel Quiet
   if (-not $ready) {
-    throw "Error en el servidor: No respondió en el puerto $Port."
+    throw "Error en el servidor: No respondio en el puerto $Port."
   }
   $vpnIp = Get-RadminVpnIp
   if (-not $vpnIp) {
-    throw "Error en Radmin VPN: Radmin VPN está iniciado, pero no se pudo obtener su IP."
+    throw "Error en Radmin VPN: Radmin VPN esta iniciado, pero no se pudo obtener su IP."
   }
   Set-Status "server" "ready" "Partida creada. IP para tus amigos: $vpnIp | Puerto: $Port"
 }
@@ -355,7 +355,7 @@ try {
     }
   } elseif (-not (Test-RadminPowerOn)) {
     Show-RadminVpnWindow
-    Set-Status "vpn" "vpn_needs_activation" "Radmin VPN está desconectado. Por favor conecte el VPN y vuelva a intentar."
+    Set-Status "vpn" "vpn_needs_activation" "Radmin VPN esta desconectado. Por favor conecte el VPN y vuelva a intentar."
     exit 0
   }
   Ensure-Docker

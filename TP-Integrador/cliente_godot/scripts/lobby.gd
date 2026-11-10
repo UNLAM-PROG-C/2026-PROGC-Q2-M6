@@ -2,12 +2,17 @@ extends Control
 
 const ProtocolConstants = preload("res://scripts/protocol_constants.gd")
 
+@onready var host_label: Label = $Panel/MarginContainer/Content/HostLabel
 @onready var host_input: LineEdit = $Panel/MarginContainer/Content/ConnectionRow/HostInput
 @onready var copy_button: Button = $Panel/MarginContainer/Content/ConnectionRow/CopyButton
 @onready var status_label: Label = $Panel/MarginContainer/Content/StatusLabel
 @onready var connect_button: Button = $Panel/MarginContainer/Content/ConnectButton
 @onready var create_party_button: Button = $Panel/MarginContainer/Content/CreatePartyButton
 @onready var start_button: Button = $Panel/MarginContainer/Content/StartButton
+
+const MODEL_IP := "127.0.0.1:5000"
+const MAX_PLAYERS := 4
+
 var _stack_process_id: int = -1
 var _stack_status_path: String
 var _last_stack_timestamp := ""
@@ -25,7 +30,8 @@ var _vpn_activation_required := false
 var _game_started := false
 var _players_count := 0
 var _minimum_players := 2
-const MAX_PLAYERS := 4
+var _using_model_ip := true
+var _disconnect_reason := ""
 
 
 func _ready() -> void:
@@ -33,9 +39,15 @@ func _ready() -> void:
 	create_party_button.pressed.connect(_on_create_party_pressed)
 	copy_button.pressed.connect(_on_copy_pressed)
 	start_button.pressed.connect(_on_start_match_pressed)
+	host_input.focus_entered.connect(_on_host_input_focus_entered)
+	host_input.gui_input.connect(_on_host_input_gui_input)
+	host_label.text = "Pega el IP para conectarte"
+	host_input.text = MODEL_IP
+	host_input.placeholder_text = MODEL_IP
+	_using_model_ip = true
 	start_button.visible = false
 	start_button.disabled = true
-	status_label.text = "Listo para crear una partida."
+	status_label.text = "Listo para crear o unirte a una partida."
 	NetworkClient.connection_requested.connect(_on_connection_requested)
 	NetworkClient.connected_to_server.connect(_on_connected)
 	NetworkClient.connection_failed.connect(_on_connection_failed)
@@ -57,14 +69,28 @@ func _process(_delta: float) -> void:
 	_poll_stack_status()
 
 
+func _on_host_input_focus_entered() -> void:
+	if _using_model_ip:
+		_using_model_ip = false
+		host_input.text = ""
+
+
+func _on_host_input_gui_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and _using_model_ip:
+		_using_model_ip = false
+		host_input.text = ""
+
+
 func _on_connect_pressed() -> void:
 	var connection := _parse_connection_code(host_input.text)
 	if connection.is_empty():
-		status_label.text = "Pegá una dirección válida con formato IP:puerto."
+		status_label.text = "Pega una direccion valida con formato IP:puerto."
 		return
 	var host: String = connection[0]
 	var port: int = connection[1]
+	_disconnect_reason = ""
 	_vpn_activation_required = false
+	host_label.text = "Pega el IP para conectarte"
 	_start_vpn_for_join(host, port)
 
 
@@ -85,11 +111,12 @@ func _on_connected() -> void:
 		status_label.text = _share_message + "\nPartida creada. Esperando jugadores."
 		start_button.text = "Iniciar partida"
 	else:
-		status_label.text = "Unido a la partida. Esperando que el anfitrión inicie..."
+		status_label.text = "Unido a la partida. Esperando que el anfitrion inicie..."
 	_update_start_button()
 
 
 func _on_connection_failed(message: String) -> void:
+	var was_joining := not _is_host and not _creating_game
 	_joining_vpn = false
 	_creating_game = false
 	_starting_docker = false
@@ -97,25 +124,46 @@ func _on_connection_failed(message: String) -> void:
 	create_party_button.disabled = false
 	start_button.visible = false
 	start_button.disabled = true
-	status_label.text = message
+	if not _disconnect_reason.is_empty():
+		status_label.text = _disconnect_reason
+		return
+	if was_joining:
+		var vpn_net := _detect_radmin_vpn_network()
+		if not vpn_net.is_empty():
+			status_label.text = (
+				"%s\nEstas conectado a la red VPN '%s'. Decile a tus amigos que se conecten a esa misma red en Radmin VPN."
+				% [message, vpn_net]
+			)
+		else:
+			status_label.text = (
+				"%s\nVerifica que vos y tus amigos esten conectados a la misma red en Radmin VPN."
+				% message
+			)
+	else:
+		status_label.text = message
 
 
 func _on_disconnected() -> void:
-	status_label.text = "Desconectado del servidor."
 	start_button.visible = false
 	start_button.disabled = true
 	connect_button.disabled = false
 	create_party_button.disabled = false
 	_is_host = false
 	_players_count = 0
+	if not _disconnect_reason.is_empty():
+		status_label.text = _disconnect_reason
+	else:
+		status_label.text = "Desconectado del servidor."
 
 
 func _on_welcome(payload: Dictionary) -> void:
+	_disconnect_reason = ""
 	_is_host = bool(payload.get("is_host", _is_host))
 	_game_started = bool(payload.get("game_started", false))
 	_players_count = int(payload.get("players", _players_count))
 	_minimum_players = int(payload.get("min_players", _minimum_players))
 	if _is_host:
+		host_label.text = "IP: pasale esto a tus amigos"
 		start_button.visible = true
 		status_label.text = "Servidor iniciado. Esperando otros jugadores.\nJugadores activos: %d/%d" % [
 			_players_count, MAX_PLAYERS
@@ -123,11 +171,11 @@ func _on_welcome(payload: Dictionary) -> void:
 		start_button.text = "Iniciar partida"
 	else:
 		start_button.visible = false
-		status_label.text = "Unido a la partida. Esperando que el anfitrión inicie.\nJugadores activos: %d/%d" % [
+		status_label.text = "Unido a la partida. Esperando que el anfitrion inicie.\nJugadores activos: %d/%d" % [
 			_players_count, MAX_PLAYERS
 		]
 		if _game_started:
-			status_label.text = "La partida está comenzando..."
+			status_label.text = "La partida esta comenzando..."
 	_update_start_button()
 
 
@@ -142,7 +190,10 @@ func _update_start_button() -> void:
 
 func _on_create_party_pressed() -> void:
 	status_label.text = "Preparando la partida..."
+	_disconnect_reason = ""
 	_vpn_activation_required = false
+	_using_model_ip = false
+	host_label.text = "IP: pasale esto a tus amigos"
 	create_party_button.disabled = true
 	connect_button.disabled = true
 	_creating_game = true
@@ -166,7 +217,7 @@ func _send_ready() -> void:
 	NetworkClient.send_message(ProtocolConstants.READY, {})
 	start_button.disabled = true
 	if _share_message.is_empty():
-		status_label.text = "Esperando a que los demás jugadores inicien..."
+		status_label.text = "Esperando a que los demas jugadores inicien..."
 	else:
 		status_label.text = _share_message + "\nEsperando jugadores..."
 
@@ -178,14 +229,13 @@ func _start_local_stack() -> void:
 
 
 func _start_vpn() -> void:
-	var port := ProtocolConstants.DEFAULT_PORT
 	var script_path := _find_stack_script()
 	if not FileAccess.file_exists(script_path):
 		_creating_game = false
 		_joining_vpn = false
 		create_party_button.disabled = false
 		connect_button.disabled = false
-		status_label.text = "Error en Radmin VPN: No se encontró el script de inicio: %s" % script_path
+		status_label.text = "Error en Radmin VPN: No se encontro el script de inicio: %s" % script_path
 		return
 	if _creating_game:
 		_ready_after_stack = true
@@ -234,7 +284,7 @@ func _start_docker() -> void:
 		_ready_after_stack = false
 		create_party_button.disabled = false
 		connect_button.disabled = false
-		status_label.text = "Error en Docker: No se encontró el script de inicio: %s" % script_path
+		status_label.text = "Error en Docker: No se encontro el script de inicio: %s" % script_path
 		return
 	_starting_docker = true
 	create_party_button.disabled = true
@@ -265,7 +315,7 @@ func _start_docker() -> void:
 		_is_host = false
 		create_party_button.disabled = false
 		connect_button.disabled = false
-		status_label.text = "Error en Docker: No se pudo iniciar el proceso. Revisá que Docker Desktop esté instalado."
+		status_label.text = "Error en Docker: No se pudo iniciar el proceso. Revisa que Docker Desktop este instalado."
 
 
 func _find_stack_script() -> String:
@@ -299,7 +349,7 @@ func _poll_stack_status() -> void:
 		_is_host = false
 		connect_button.disabled = false
 		start_button.disabled = false
-		status_label.text = "El proceso de inicio superó los 3 minutos. Revisá permisos, Radmin VPN y Docker Desktop."
+		status_label.text = "El proceso de inicio supero los 3 minutos. Revisa permisos, Radmin VPN y Docker Desktop."
 		return
 	if not FileAccess.file_exists(_stack_status_path):
 		return
@@ -337,9 +387,9 @@ func _poll_stack_status() -> void:
 		connect_button.disabled = false
 		create_party_button.disabled = false
 		start_button.disabled = true
-		status_label.text = "Radmin VPN está desconectado. Por favor conecte el VPN y vuelva a intentar."
+		status_label.text = "Radmin VPN esta desconectado. Por favor conecte el VPN y vuelva a intentar."
 		OS.alert(
-			"Por favor conecte el VPN.\n\nEncienda el botón en Radmin VPN y vuelva a intentar.",
+			"Por favor conecte el VPN.\n\nEncienda el boton en Radmin VPN y vuelva a intentar.",
 			"Radmin VPN"
 		)
 		return
@@ -355,8 +405,10 @@ func _poll_stack_status() -> void:
 			_stack_process_id = -1
 			_ready_after_stack = false
 			start_button.disabled = false
-			status_label.text = "El servidor inició, pero no devolvió una dirección IP:puerto válida."
+			status_label.text = "El servidor inicio, pero no devolvio una direccion IP:puerto valida."
 			return
+		_using_model_ip = false
+		host_label.text = "IP: pasale esto a tus amigos"
 		host_input.text = _connection_code
 		status_label.text = "Servidor iniciado. Conectando..."
 		var connection := _parse_connection_code(_connection_code)
@@ -404,6 +456,38 @@ func _connection_code_from_status(message: String) -> String:
 	]
 
 
+func _detect_radmin_vpn_network() -> String:
+	var log_path := "C:/ProgramData/Famatech/Radmin VPN/service.log"
+	if not FileAccess.file_exists(log_path):
+		return ""
+	var file := FileAccess.open(log_path, FileAccess.READ)
+	if file == null:
+		return ""
+	var content := file.get_as_text()
+	file.close()
+	var active_networks: Array[String] = []
+	for line in content.split("\n"):
+		var net_idx := line.find("network '")
+		if net_idx < 0:
+			continue
+		var start := net_idx + "network '".length()
+		var end := line.find("'", start)
+		if end <= start:
+			continue
+		var net_name := line.substr(start, end - start).strip_edges()
+		if net_name.is_empty():
+			continue
+		var lower := line.to_lower()
+		if lower.find("leave network '") >= 0 or lower.find("remove network '") >= 0 or lower.find("removed network '") >= 0 or lower.find("left network '") >= 0:
+			active_networks.erase(net_name)
+		elif lower.find("create network '") >= 0 or lower.find("join network '") >= 0 or lower.find("joined network '") >= 0:
+			if not active_networks.has(net_name):
+				active_networks.append(net_name)
+	if active_networks.is_empty():
+		return ""
+	return active_networks[active_networks.size() - 1]
+
+
 func show_waiting_for_start() -> void:
 	visible = true
 
@@ -433,6 +517,7 @@ func _on_game_over(payload: Dictionary) -> void:
 		payload.get("result", "GAME OVER"), payload.get("reason", "")
 	]
 
+
 func reset_lobby() -> void:
 	_is_host = false
 	_share_message = ""
@@ -440,13 +525,31 @@ func reset_lobby() -> void:
 	_vpn_activation_required = false
 	_game_started = false
 	_players_count = 0
+	_disconnect_reason = ""
+	_using_model_ip = true
+	host_label.text = "Pega el IP para conectarte"
+	host_input.text = MODEL_IP
 	start_button.text = "Iniciar partida"
 	start_button.visible = false
 	start_button.disabled = true
 	create_party_button.disabled = false
 	connect_button.disabled = false
-	status_label.text = "Partida reiniciada. Podés crear o unirte nuevamente."
+	status_label.text = "Partida reiniciada. Podes crear o unirte nuevamente."
 
 
 func _on_error(payload: Dictionary) -> void:
+	var code := String(payload.get("code", ""))
+	if code == "MAX_PLAYERS":
+		_disconnect_reason = "Servidor lleno (4/4 jugadores)."
+		status_label.text = _disconnect_reason
+		connect_button.disabled = false
+		create_party_button.disabled = false
+		start_button.visible = false
+		start_button.disabled = true
+		NetworkClient.disconnect_from_server()
+		return
+	if code == "GAME_ALREADY_STARTED":
+		_disconnect_reason = "La partida ya esta en curso."
+		status_label.text = _disconnect_reason
+		return
 	status_label.text = "Error: %s" % payload.get("message", "Unknown error")

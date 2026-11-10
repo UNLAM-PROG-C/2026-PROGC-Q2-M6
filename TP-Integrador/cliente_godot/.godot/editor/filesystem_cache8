@@ -16,7 +16,7 @@ Enemy.tscn::PackedScene::-1::1792862008::0::1::::<><>::res://scripts/enemy.gd
 GameOver.tscn::PackedScene::-1::1794277954::0::1::::<><>::res://scripts/game_over.gd
 GameView.tscn::PackedScene::-1::1794260470::0::1::::<><>::res://scripts/game_view.gd<>res://scripts/input_handler.gd<>res://scenes/Hud.tscn<>res://scenes/GameOver.tscn
 Hud.tscn::PackedScene::-1::1794260470::0::1::::<><>::res://scripts/hud.gd
-Lobby.tscn::PackedScene::-1::1794273681::0::1::::<><>::res://scripts/lobby.gd
+Lobby.tscn::PackedScene::-1::1794307448::0::1::::<><>::res://scripts/lobby.gd
 Main.tscn::PackedScene::-1::1792862008::0::1::::<><>::res://scripts/main.gd<>res://scenes/Lobby.tscn<>res://scenes/GameView.tscn
 Tower.tscn::PackedScene::-1::1792862008::0::1::::<><>::res://scripts/tower.gd
 ::res://scripts/::1794260470
@@ -26,8 +26,8 @@ game_over.gd::GDScript::-1::1794277955::0::1::::GameOverPanel<>Control<>::
 game_view.gd::GDScript::-1::1794260751::0::1::::<>Control<>::
 hud.gd::GDScript::-1::1794260470::0::1::::GameHud<>Control<>::
 input_handler.gd::GDScript::-1::1794260081::0::1::::GameInputHandler<>Control<>::
-lobby.gd::GDScript::-1::1794278503::0::1::::<>Control<>::
+lobby.gd::GDScript::-1::1794307564::0::1::::<>Control<>::
 main.gd::GDScript::-1::1794260623::0::1::::<>Control<>::
-network_client.gd::GDScript::-1::1794277955::0::1::::<>Node<>::
+network_client.gd::GDScript::-1::1794307470::0::1::::<>Node<>::
 protocol_constants.gd::GDScript::-1::1794260618::0::1::::ProtocolConstants<>Node<>::
 tower.gd::GDScript::-1::1792865784::0::1::::TowerView<>Node2D<>::
