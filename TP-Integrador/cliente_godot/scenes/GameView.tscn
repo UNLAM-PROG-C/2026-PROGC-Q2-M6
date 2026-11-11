@@ -1,9 +1,10 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://scripts/game_view.gd" id="1_game_view"]
 [ext_resource type="Script" path="res://scripts/input_handler.gd" id="2_input"]
 [ext_resource type="PackedScene" path="res://scenes/Hud.tscn" id="3_hud"]
 [ext_resource type="PackedScene" path="res://scenes/GameOver.tscn" id="4_game_over"]
+[ext_resource type="Script" path="res://scripts/fridge.gd" id="5_fridge"]
 
 [node name="GameView" type="Control"]
 layout_mode = 3
@@ -13,6 +14,9 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_game_view")
+
+[node name="Fridge" type="Node2D" parent="."]
+script = ExtResource("5_fridge")
 
 [node name="Entities" type="Node2D" parent="."]
 
