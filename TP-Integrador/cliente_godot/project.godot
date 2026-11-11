@@ -18,6 +18,7 @@ config/features=PackedStringArray("4.7")
 [autoload]
 
 NetworkClient="*res://scripts/network_client.gd"
+SoundManager="*res://scripts/sound_manager.gd"
 
 [display]
 
