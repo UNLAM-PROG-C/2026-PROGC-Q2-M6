@@ -96,7 +96,7 @@ func _process_commands() -> void:
 func _apply_command(command: Command) -> void:
 	match command:
 		Command.PLAY_MUSIC:
-			if not _music.is_playing():
+			if not _is_playing:
 				_music.start()
 			_is_playing = true
 		Command.STOP_MUSIC:
