@@ -15,6 +15,7 @@ var base_hp: float = 100.0
 @onready var entities: Node2D = $Entities
 @onready var game_over: GameOverPanel = $GameOver
 @onready var restart_button: Button = $RestartButton
+@onready var fridge: FridgeView = $Fridge
 
 
 func _ready() -> void:
@@ -45,7 +46,6 @@ func _on_restart_pressed() -> void:
 func _draw() -> void:
 	_draw_background()
 	_draw_lanes()
-	_draw_base()
 	for effect in attack_effects:
 		var tower: Node2D = tower_views.get(int(effect["tower_id"])) as Node2D
 		var enemy: Node2D = enemy_views.get(int(effect["target_id"])) as Node2D
@@ -54,83 +54,78 @@ func _draw() -> void:
 			draw_circle(enemy.position, 7.0, Color("#fff4a8"))
 
 
+const WALL_TOP: float = 90.0
+const BASEBOARD_TOP: float = 178.0
+const FLOOR_TOP: float = 198.0
+const WALL_TILE: float = 40.0
+const FLOOR_TILE: float = 64.0
+
+
 func _draw_background() -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), Color("#27313b"))
-	draw_rect(Rect2(0, 90, size.x, 34), Color("#d69b58"))
-	draw_rect(Rect2(0, 124, size.x, size.y - 124), Color("#eadfca"))
-	for x in range(0, int(size.x) + 1, 48):
-		draw_line(
-			Vector2(x, 124),
-			Vector2(x, size.y),
-			Color("#c7bca9"),
-			1.0,
-		)
-	for y in range(124, int(size.y) + 1, 32):
-		draw_line(
-			Vector2(0, y),
-			Vector2(size.x, y),
-			Color("#c7bca9"),
-			1.0,
-		)
-	draw_rect(Rect2(0, 90, size.x, 3), Color("#7d4a39"))
+	_draw_wall()
+	_draw_baseboard()
+	_draw_floor()
+
+
+func _draw_wall() -> void:
+	var cols: int = int(ceil(size.x / WALL_TILE))
+	var y: float = WALL_TOP
+	var row: int = 0
+	while y < BASEBOARD_TOP:
+		var h: float = minf(WALL_TILE, BASEBOARD_TOP - y)
+		for col in cols:
+			var tile_color: Color = Color("#f3dfae") if (row + col) % 2 == 0 else Color("#e9cf96")
+			draw_rect(Rect2(col * WALL_TILE, y, WALL_TILE, h), tile_color)
+			draw_rect(Rect2(col * WALL_TILE + 3, y + 3, 6, 2), Color("#fbefcf"))
+		y += WALL_TILE
+		row += 1
+	for col in range(0, cols + 1):
+		draw_line(Vector2(col * WALL_TILE, WALL_TOP), Vector2(col * WALL_TILE, BASEBOARD_TOP), Color("#d8bd84"), 1.0)
+	y = WALL_TOP
+	while y < BASEBOARD_TOP:
+		draw_line(Vector2(0, y), Vector2(size.x, y), Color("#d8bd84"), 1.0)
+		y += WALL_TILE
+
+
+func _draw_baseboard() -> void:
+	draw_rect(Rect2(0, BASEBOARD_TOP, size.x, FLOOR_TOP - BASEBOARD_TOP), Color("#9a5b3c"))
+	draw_rect(Rect2(0, BASEBOARD_TOP, size.x, 4), Color("#c27c55"))
+	draw_rect(Rect2(0, FLOOR_TOP - 3, size.x, 3), Color("#6e3d28"))
+	# Sombra suave del zócalo sobre el piso
+	draw_rect(Rect2(0, FLOOR_TOP, size.x, 6), Color(0, 0, 0, 0.08))
+
+
+func _draw_floor() -> void:
+	draw_rect(Rect2(0, FLOOR_TOP, size.x, size.y - FLOOR_TOP), Color("#efeadf"))
+	var cols: int = int(ceil(size.x / FLOOR_TILE))
+	var rows: int = int(ceil((size.y - FLOOR_TOP) / FLOOR_TILE))
+	for row in rows:
+		for col in cols:
+			var tile := Rect2(col * FLOOR_TILE, FLOOR_TOP + row * FLOOR_TILE, FLOOR_TILE, FLOOR_TILE)
+			if (row + col) % 2 == 1:
+				draw_rect(tile, Color("#e8e2d4"))
+			# Bisel: luz arriba/izquierda, sombra abajo/derecha
+			draw_line(tile.position, Vector2(tile.end.x, tile.position.y), Color("#fbf8f1"), 2.0)
+			draw_line(tile.position, Vector2(tile.position.x, tile.end.y), Color("#fbf8f1"), 2.0)
+			draw_line(Vector2(tile.position.x, tile.end.y - 1), tile.end - Vector2(0, 1), Color("#d6cfc0"), 2.0)
+			draw_line(Vector2(tile.end.x - 1, tile.position.y), tile.end - Vector2(1, 0), Color("#d6cfc0"), 2.0)
 
 
 func _draw_lanes() -> void:
+	var lane_end: float = GameConstants.BOARD_LEFT + GameConstants.BOARD_WIDTH
 	for lane_y in GameConstants.LANE_Y:
-		draw_line(
-			Vector2(GameConstants.BOARD_LEFT, lane_y + 32),
-			Vector2(GameConstants.BOARD_LEFT + GameConstants.BOARD_WIDTH, lane_y + 32),
-			Color("#a99d8d"),
-			2.0,
-		)
-		draw_line(
-			Vector2(GameConstants.BOARD_LEFT, lane_y - 28),
-			Vector2(GameConstants.BOARD_LEFT + GameConstants.BOARD_WIDTH, lane_y - 28),
-			Color("#f6efdf"),
-			2.0,
-		)
-
-
-func _draw_base() -> void:
-	var ratio: float = clampf(base_hp / 100.0, 0.0, 1.0)
-	var outer_color: Color = Color("#55a5bd").lerp(Color("#713838"), 1.0 - ratio)
-	var base_rect: Rect2 = Rect2(1120, 190, 132, 386)
-	draw_rect(base_rect, Color("#6a513e"))
-	draw_rect(Rect2(1126, 196, 120, 374), outer_color)
-	draw_rect(Rect2(1134, 222, 104, 294), Color("#bcecf1").lerp(Color("#d36d55"), 1.0 - ratio))
-	draw_rect(Rect2(1134, 196, 104, 26), Color("#1d6985"))
-	draw_string(
-		ThemeDB.fallback_font,
-		Vector2(1138, 215),
-		"FRIGORIFICO",
-		HORIZONTAL_ALIGNMENT_CENTER,
-		88,
-		14,
-		Color("#e9ffff"),
-	)
-	draw_string(
-		ThemeDB.fallback_font,
-		Vector2(1138, 550),
-		"OFERTAS",
-		HORIZONTAL_ALIGNMENT_CENTER,
-		88,
-		10,
-		Color("#1f5260"),
-	)
-	for shelf_y in [266.0, 336.0, 406.0, 476.0]:
-		draw_line(Vector2(1138, shelf_y), Vector2(1234, shelf_y), Color("#448ba0"), 3.0)
-		for pack_x in [839.0, 861.0, 883.0, 905.0]:
-			var freezer_x: float = pack_x + 300.0
-			draw_rect(Rect2(freezer_x, shelf_y - 28, 16, 18), Color("#f1a36f"))
-			draw_rect(Rect2(freezer_x + 3, shelf_y - 24, 10, 4), Color("#fff1c4"))
-	if ratio < 0.75:
-		draw_line(Vector2(1142, 250), Vector2(1228, 500), Color("#713838"), 4.0)
-	if ratio < 0.45:
-		draw_line(Vector2(1228, 250), Vector2(1142, 500), Color("#713838"), 4.0)
+		# Franja tenue que marca el carril sin cortar el piso
+		draw_rect(Rect2(0, lane_y - 44, lane_end, 88), Color("#b8ab92", 0.12))
+		var x: float = GameConstants.BOARD_LEFT
+		while x < lane_end:
+			draw_line(Vector2(x, lane_y + 36), Vector2(minf(x + 20.0, lane_end), lane_y + 36), Color("#cfc4ae"), 2.0)
+			x += 36.0
 
 
 func _on_state_update(payload: Dictionary) -> void:
 	base_hp = float(payload.get("base_hp", 100.0))
+	fridge.set_hp(base_hp)
 	hud.update_state(payload)
 	_sync_towers(payload.get("towers", []))
 	_sync_enemies(payload.get("enemies", []))
@@ -212,5 +207,7 @@ func reset_for_new_game() -> void:
 	tower_views.clear()
 	enemy_views.clear()
 	attack_effects.clear()
+	base_hp = 100.0
+	fridge.set_hp(base_hp)
 	game_over.visible = false
 	hud.reset_state()
