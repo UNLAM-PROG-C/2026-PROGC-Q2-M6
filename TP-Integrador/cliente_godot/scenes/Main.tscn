@@ -1,4 +1,4 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=4 format=3 uid="uid://c0sd3udgws2o"]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://scenes/Lobby.tscn" id="2_lobby"]
@@ -14,7 +14,8 @@ grow_vertical = 2
 script = ExtResource("1_main")
 
 [node name="Lobby" parent="." instance=ExtResource("2_lobby")]
+layout_mode = 1
 
 [node name="GameView" parent="." instance=ExtResource("3_game_view")]
 visible = false
-
+layout_mode = 1
