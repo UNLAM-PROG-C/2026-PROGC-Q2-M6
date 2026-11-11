@@ -56,8 +56,23 @@ func _draw() -> void:
 
 func _draw_background() -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), Color("#27313b"))
-	draw_rect(Rect2(0, 90, size.x, 34), Color("#a66042"))
-	draw_rect(Rect2(0, 124, size.x, size.y - 124), Color("#e7d8b9"))
+	draw_rect(Rect2(0, 90, size.x, 34), Color("#d69b58"))
+	draw_rect(Rect2(0, 124, size.x, size.y - 124), Color("#eadfca"))
+	for x in range(0, int(size.x) + 1, 48):
+		draw_line(
+			Vector2(x, 124),
+			Vector2(x, size.y),
+			Color("#c7bca9"),
+			1.0,
+		)
+	for y in range(124, int(size.y) + 1, 32):
+		draw_line(
+			Vector2(0, y),
+			Vector2(size.x, y),
+			Color("#c7bca9"),
+			1.0,
+		)
+	draw_rect(Rect2(0, 90, size.x, 3), Color("#7d4a39"))
 
 
 func _draw_lanes() -> void:
@@ -65,29 +80,53 @@ func _draw_lanes() -> void:
 		draw_line(
 			Vector2(GameConstants.BOARD_LEFT, lane_y + 32),
 			Vector2(GameConstants.BOARD_LEFT + GameConstants.BOARD_WIDTH, lane_y + 32),
-			Color("#b8aa91"),
+			Color("#a99d8d"),
+			2.0,
+		)
+		draw_line(
+			Vector2(GameConstants.BOARD_LEFT, lane_y - 28),
+			Vector2(GameConstants.BOARD_LEFT + GameConstants.BOARD_WIDTH, lane_y - 28),
+			Color("#f6efdf"),
 			2.0,
 		)
 
 
 func _draw_base() -> void:
-	var ratio := clampf(base_hp / 100.0, 0.0, 1.0)
-	var outer_color := Color("#55a5bd").lerp(Color("#713838"), 1.0 - ratio)
-	draw_rect(Rect2(822, 150, 112, 280), outer_color)
-	draw_rect(Rect2(834, 165, 88, 230), Color("#bcecf1").lerp(Color("#d36d55"), 1.0 - ratio))
-	if ratio < 0.75:
-		draw_line(Vector2(850, 210), Vector2(880, 260), Color("#713838"), 4.0)
-	if ratio < 0.45:
-		draw_line(Vector2(885, 290), Vector2(850, 350), Color("#713838"), 4.0)
+	var ratio: float = clampf(base_hp / 100.0, 0.0, 1.0)
+	var outer_color: Color = Color("#55a5bd").lerp(Color("#713838"), 1.0 - ratio)
+	var base_rect: Rect2 = Rect2(1120, 190, 132, 386)
+	draw_rect(base_rect, Color("#6a513e"))
+	draw_rect(Rect2(1126, 196, 120, 374), outer_color)
+	draw_rect(Rect2(1134, 222, 104, 294), Color("#bcecf1").lerp(Color("#d36d55"), 1.0 - ratio))
+	draw_rect(Rect2(1134, 196, 104, 26), Color("#1d6985"))
 	draw_string(
 		ThemeDB.fallback_font,
-		Vector2(842, 190),
-		"BASE",
-		HORIZONTAL_ALIGNMENT_LEFT,
-		-1,
-		20,
-		Color("#183244"),
+		Vector2(1138, 215),
+		"FRIGORIFICO",
+		HORIZONTAL_ALIGNMENT_CENTER,
+		88,
+		14,
+		Color("#e9ffff"),
 	)
+	draw_string(
+		ThemeDB.fallback_font,
+		Vector2(1138, 550),
+		"OFERTAS",
+		HORIZONTAL_ALIGNMENT_CENTER,
+		88,
+		10,
+		Color("#1f5260"),
+	)
+	for shelf_y in [266.0, 336.0, 406.0, 476.0]:
+		draw_line(Vector2(1138, shelf_y), Vector2(1234, shelf_y), Color("#448ba0"), 3.0)
+		for pack_x in [839.0, 861.0, 883.0, 905.0]:
+			var freezer_x: float = pack_x + 300.0
+			draw_rect(Rect2(freezer_x, shelf_y - 28, 16, 18), Color("#f1a36f"))
+			draw_rect(Rect2(freezer_x + 3, shelf_y - 24, 10, 4), Color("#fff1c4"))
+	if ratio < 0.75:
+		draw_line(Vector2(1142, 250), Vector2(1228, 500), Color("#713838"), 4.0)
+	if ratio < 0.45:
+		draw_line(Vector2(1228, 250), Vector2(1142, 500), Color("#713838"), 4.0)
 
 
 func _on_state_update(payload: Dictionary) -> void:
@@ -151,9 +190,14 @@ func _on_game_over(payload: Dictionary) -> void:
 
 
 func _on_attack(payload: Dictionary) -> void:
+	var tower_id := int(payload.get("tower_id", -1))
+	var target_ids: Array = payload.get("target_ids", [])
+	var tower: TowerView = tower_views.get(tower_id) as TowerView
+	if tower != null:
+		tower.play_attack(target_ids.size())
 	for target_id in payload.get("target_ids", []):
 		attack_effects.append({
-			"tower_id": int(payload.get("tower_id", -1)),
+			"tower_id": tower_id,
 			"target_id": int(target_id),
 			"remaining": 0.16,
 		})

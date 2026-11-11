@@ -21,10 +21,13 @@ func _ready() -> void:
 
 
 func update_state(payload: Dictionary) -> void:
-	gold_label.text = "ORO: %s" % payload.get("gold", 0)
-	base_label.text = "BASE: %s/100" % payload.get("base_hp", 0)
+	var gold: int = int(payload.get("gold", 0))
+	var base_hp: int = int(payload.get("base_hp", 0))
+	var current_wave: int = int(payload.get("current_wave", 0))
+	gold_label.text = "ORO: %d" % gold
+	base_label.text = "BASE: %d/100" % base_hp
 	base_bar.value = float(payload.get("base_hp", 0))
-	wave_label.text = "OLEADA: %s/10" % payload.get("current_wave", 0)
+	wave_label.text = "OLEADA: %d/10" % current_wave
 
 
 func reset_state() -> void:

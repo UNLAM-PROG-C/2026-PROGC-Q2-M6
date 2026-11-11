@@ -82,6 +82,7 @@ class GameLoop:
     self.game_over_sent = False
     self.ready_event = threading.Event()
     self.wave_complete_event = threading.Event()
+    self.game_over_event = threading.Event()
     self.events = EventPublisher()
     self.enemies_defeated = 0
     self._subscribe_to_events()
@@ -104,6 +105,11 @@ class GameLoop:
     next_tick = time.monotonic()
     while not self.stop_event.is_set():
       self._drain_commands()
+      if self.game_over_event.is_set():
+        self._broadcast_state()
+        next_tick += GAME_TICK_SECONDS
+        self.stop_event.wait(max(0.0, next_tick - time.monotonic()))
+        continue
       self._drain_enemies()
       self._resolve_attacks()
       reached = self.state.advance_enemies(GAME_TICK_SECONDS)
@@ -324,6 +330,7 @@ class GameLoop:
       except queue.Empty:
         break
     self.game_over_sent = False
+    self.game_over_event.clear()
     self.start_requested = False
     self.first_tower_placed = False
     self.roster_locked = False
@@ -374,6 +381,7 @@ class GameLoop:
   def _reset_match(self) -> None:
     self.state.reset_match()
     self.game_over_sent = False
+    self.game_over_event.clear()
     self.start_requested = True
     self.first_tower_placed = False
     self.roster_locked = True
@@ -419,6 +427,14 @@ class GameLoop:
     if self.game_over_sent:
       return
     self.game_over_sent = True
+    self.game_over_event.set()
+    self.countdown_generation += 1
+    self.countdown_active = False
+    while not self.enemy_queue.empty():
+      try:
+        self.enemy_queue.get_nowait()
+      except queue.Empty:
+        break
     self.server.broadcast(GAME_OVER, {
       "result": result,
       "reason": reason,

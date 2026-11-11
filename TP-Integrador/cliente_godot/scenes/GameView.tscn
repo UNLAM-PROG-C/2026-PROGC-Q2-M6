@@ -30,9 +30,9 @@ script = ExtResource("2_input")
 
 [node name="RestartButton" type="Button" parent="."]
 layout_mode = 0
-offset_left = 800.0
+offset_left = 1090.0
 offset_top = 18.0
-offset_right = 950.0
+offset_right = 1260.0
 offset_bottom = 64.0
 text = "Reiniciar"
 
