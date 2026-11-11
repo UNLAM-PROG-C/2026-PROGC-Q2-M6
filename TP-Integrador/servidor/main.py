@@ -51,6 +51,7 @@ def run_server(host: str, port: int) -> None:
       stop_event,
       game_loop.wave_start_event,
       game_loop.match_reset_event,
+      game_loop.game_over_event,
     )
     print(f"Server listening on {server.address[0]}:{server.address[1]}", flush=True)
     print(f"Parent PID: {os.getpid()}", flush=True)

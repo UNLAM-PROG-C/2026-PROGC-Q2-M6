@@ -1,12 +1,12 @@
 extends Node
 class_name GameConstants
 
-const BOARD_LEFT: float = 80.0
-const BOARD_TOP: float = 112.0
-const BOARD_WIDTH: float = 720.0
-const BOARD_HEIGHT: float = 360.0
+const BOARD_LEFT: float = 100.0
+const BOARD_TOP: float = 150.0
+const BOARD_WIDTH: float = 1000.0
+const BOARD_HEIGHT: float = 500.0
 const WORLD_END: float = 100.0
-const LANE_Y: Array[float] = [172.0, 292.0, 412.0]
+const LANE_Y: Array[float] = [250.0, 400.0, 550.0]
 const ENTITY_SCALE: float = 0.72
 const TOWER_TYPES: Array[StringName] = [
 	&"MOPPER", &"STOCK_REPLENISHER", &"AUDIO_TOWER"
@@ -14,7 +14,7 @@ const TOWER_TYPES: Array[StringName] = [
 const TOWER_LABELS: Dictionary = {
 	&"MOPPER": "Mopeador",
 	&"STOCK_REPLENISHER": "Repositor",
-	&"AUDIO_TOWER": "Paging",
+	&"AUDIO_TOWER": "Altavoz",
 }
 const TOWER_COSTS: Dictionary = {
 	&"MOPPER": 50,
