@@ -25,7 +25,7 @@
    - Cuando haya **2 o más jugadores** conectados, se habilitará el botón **Iniciar partida**. Presionalo para comenzar.
 3. **Si te unís a la partida de un amigo:**
    - Pegá la dirección (`IP:puerto`) que te pasó tu amigo en el cuadro de texto.
-   - Presioná **Unirse** y esperá a que el anfitrión inicie la partida.|
+   - Presioná **Unirse** y esperá a que el anfitrión inicie la partida.
 4. **Inicio de las oleadas:**
    - Una vez dentro del mapa, la primera oleada comienza automáticamente cuando cualquiera de los jugadores coloca la primera torre.
 
@@ -36,3 +36,14 @@
 1. Ejecutá **`DesinstalarTowerDefense.exe`** (o buscá **Desinstalar Co-Tower Defense** en el Menú Inicio / Configuración de Windows).
 2. Confirmá la desinstalación del juego (esto borrará la carpeta del juego y todos sus datos guardados).
 3. El desinstalador te preguntará si también querés desinstalar **Docker Desktop** y **Radmin VPN** (elegí **Sí** o **No** según prefieras).
+
+---
+
+## Para desarrolladores: generar el instalador
+
+`TowerDefenseSetup.iss` empaqueta `CoTowerDefense.exe` y `CoTowerDefense.pck`, que no se versionan.
+Antes de compilar el instalador con Inno Setup, exportá el proyecto desde Godot 4.3
+(**Proyecto → Exportar**, preset "Windows Desktop" de `cliente_godot/export_presets.cfg`) y copiá
+ambos archivos a la raíz de `TP-Integrador`. También se necesitan
+`installer/output/DesinstalarTowerDefense.exe` (compilado desde `installer/uninstaller/Uninstaller.cs`)
+y `installer/payload/Godot_v4.3-stable_win64.exe`.

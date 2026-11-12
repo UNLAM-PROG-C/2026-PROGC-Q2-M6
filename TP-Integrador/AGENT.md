@@ -50,8 +50,8 @@ Todos los mensajes tienen esta forma:
 
 Los nombres deben ser idénticos en `servidor/protocol.py` y `cliente_godot/scripts/protocol_constants.gd`.
 
-- Cliente → servidor: `HELLO`, `READY`, `BUY_TOWER`, `SELL_TOWER`, `PING`.
-- Servidor → cliente: `WELCOME`, `STATE_UPDATE`, `WAVE_START`, `BASE_DAMAGE`, `GAME_OVER`, `ERROR`.
+- Cliente → servidor: `HELLO`, `READY`, `START_GAME`, `RESET_MATCH`, `BUY_TOWER`, `UPGRADE_TOWER`, `SELL_TOWER`, `PING`.
+- Servidor → cliente: `WELCOME`, `STATE_UPDATE`, `WAVE_START`, `COUNTDOWN`, `BASE_DAMAGE`, `GAME_OVER`, `ERROR`, `ATTACK`, `MATCH_RESET`, `MATCH_STARTED`.
 
 Toda lectura TCP debe soportar lecturas parciales y mensajes pegados. Los mensajes inválidos o desconocidos deben producir `ERROR` o descartarse de forma segura, nunca tumbar el servidor.
 
@@ -103,4 +103,4 @@ El desarrollo del servidor, las pruebas y las herramientas se ejecuta dentro de 
 
 ## Prioridad actual
 
-Al 17/10/2026 Sprint 2 está implementado: servidor con hilos, colas, spawner, game loop a 20 Hz, cliente Godot conectado y bot de pruebas. La validación Docker queda pendiente hasta disponer del daemon. La vinculación con GitHub y la rama/tag `release/ap1-parte2` se realizan manualmente fuera del entorno actual. El objetivo recomendado del proyecto es la entrega del 25/11; el 02/12 queda como colchón.
+Al 11/11/2026 el juego está completo (Sprints 0 a 4): servidor con hilos, colas, spawner, game loop a 20 Hz, proceso hijo de oleadas, cliente Godot con lobby/VPN, instalador de Windows y bot de pruebas. La suite `pytest` pasa dentro de Docker y el cliente se valida en Godot 4.3 headless. El foco es mantener la versión limpia (reglas de código de arriba) hasta la entrega del 25/11; el 02/12 queda como colchón.

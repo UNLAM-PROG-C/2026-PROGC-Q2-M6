@@ -44,7 +44,8 @@ El repositorio se monta en `/workspace` en cada servicio. Python y `pytest` se e
 
 ## Configuración
 
-Copiá `.env.example` a `.env` cuando necesites configuraciones locales personalizadas:
+Copiá `.env.example` a `.env` cuando necesites configuraciones locales personalizadas
+(`GODOT_VERSION`, `SERVER_HOST` y `HOST_PORT`):
 
 ```
 cp .env.example .env
@@ -52,6 +53,7 @@ cp .env.example .env
 ```
 
 Los valores por defecto son Godot `4.3`, host del servidor `0.0.0.0` y puerto TCP `5000`.
+El contenedor siempre escucha en `5000`; `HOST_PORT` elige el puerto publicado en la PC anfitriona.
 
 ## Comandos de Docker
 
@@ -93,7 +95,7 @@ En Windows con Docker Desktop, ejecutá esto desde PowerShell dentro de `TP-Inte
 El script construye la imagen del servidor si es necesario e inicia una instancia del servidor TCP escuchando en `0.0.0.0:5000`. Para cambiar el puerto:
 
 ```
-$env:SERVER_PORT = "5001"
+$env:HOST_PORT = "5001"
 docker compose up --build server
 
 ```
@@ -129,7 +131,7 @@ El instalador escribe el diagnóstico en `%ProgramData%\TowerDefense\installer.l
 inicio del lobby usa un archivo temporal dentro del perfil del usuario para comunicar el estado
 entre Godot y PowerShell.
 
-El registro de inicio incluye los PIDs del proceso padre y del hijo. El servidor designa al primer cliente como anfitrión; cuando el anfitrión presiona `Iniciar partida`, inicia la primera oleada para todos los clientes conectados. El servidor permanece activo hasta recibir `SIGINT` o `SIGTERM`.
+El registro de inicio incluye los PIDs del proceso padre y del hijo. El servidor designa al primer cliente como anfitrión; cuando el anfitrión presiona `Iniciar partida`, todos los clientes pasan al tablero y la primera oleada arranca (tras una cuenta regresiva de 3 segundos) cuando cualquier jugador coloca la primera torre. El servidor permanece activo hasta recibir `SIGINT` o `SIGTERM`.
 
 El proceso trabajador requiere `fork()`, por lo que se ejecuta de forma nativa en Linux/macOS. En Windows, utilizá WSL. El proceso hijo se inicia con:
 
