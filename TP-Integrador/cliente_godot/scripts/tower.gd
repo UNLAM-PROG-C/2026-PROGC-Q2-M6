@@ -10,12 +10,24 @@ const TEXTURES: Dictionary = {
 	&"AUDIO_TOWER": preload("res://assets/characters/audio_tower.svg"),
 }
 
+const PUDDLE_OFFSET: Vector2 = Vector2(0, 31)
+const PUDDLE_RADII: Vector2 = Vector2(34, 9)
+const PUDDLE_COLOR: Color = Color("#78d8e8", 0.7)
+const SOUND_WAVE_RADIUS: float = 32.0
+const SOUND_WAVE_AMPLITUDE: float = 5.0
+const SOUND_WAVE_SPEED: float = 5.0
+const SOUND_WAVE_HALF_ANGLE: float = 0.8
+const SOUND_WAVE_SEGMENTS: int = 18
+const SOUND_WAVE_COLOR: Color = Color("#f5d16a", 0.7)
+const SOUND_WAVE_WIDTH: float = 3.0
+const ELLIPSE_SEGMENTS: int = 24
+
 enum State {
 	IDLE,
 	ATTACKING,
 }
 
-@export_category("Feedback visual del ataque")
+@export_category("Attack visual feedback")
 @export var attack_pulse_scale: float = 1.12
 @export_range(0.01, 1.0, 0.01) var attack_pulse_duration: float = 0.12
 @export var attack_flash_color: Color = Color("#fff4a8")
@@ -45,14 +57,16 @@ func set_state(payload: Dictionary, screen_position: Vector2) -> void:
 func play_attack(target_count: int) -> void:
 	if target_count <= 0:
 		return
-
 	if _attack_tween != null and _attack_tween.is_valid():
 		_attack_tween.kill()
-
 	state = State.ATTACKING
 	attack_started.emit(target_count)
 	sprite.modulate = attack_flash_color
 	sprite.scale = _base_scale
+	_start_attack_tween()
+
+
+func _start_attack_tween() -> void:
 	_attack_tween = create_tween()
 	_attack_tween.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	_attack_tween.tween_property(
@@ -84,15 +98,27 @@ func _process(delta: float) -> void:
 
 func _draw() -> void:
 	if tower_type == &"MOPPER":
-		draw_ellipse_shape(Vector2(0, 31), Vector2(34, 9), Color("#78d8e8", 0.7))
+		draw_ellipse_shape(PUDDLE_OFFSET, PUDDLE_RADII, PUDDLE_COLOR)
 	if tower_type == &"AUDIO_TOWER":
-		var radius: float = 32.0 + sin(pulse_time * 5.0) * 5.0
-		draw_arc(Vector2.ZERO, radius, -0.8, 0.8, 18, Color("#f5d16a", 0.7), 3.0)
+		_draw_sound_wave()
+
+
+func _draw_sound_wave() -> void:
+	var wave_offset: float = sin(pulse_time * SOUND_WAVE_SPEED) * SOUND_WAVE_AMPLITUDE
+	draw_arc(
+		Vector2.ZERO,
+		SOUND_WAVE_RADIUS + wave_offset,
+		-SOUND_WAVE_HALF_ANGLE,
+		SOUND_WAVE_HALF_ANGLE,
+		SOUND_WAVE_SEGMENTS,
+		SOUND_WAVE_COLOR,
+		SOUND_WAVE_WIDTH,
+	)
 
 
 func draw_ellipse_shape(center: Vector2, radii: Vector2, color: Color) -> void:
 	var points: PackedVector2Array = PackedVector2Array()
-	for index: int in 24:
-		var angle: float = TAU * float(index) / 24.0
+	for index: int in ELLIPSE_SEGMENTS:
+		var angle: float = TAU * float(index) / float(ELLIPSE_SEGMENTS)
 		points.append(center + Vector2(cos(angle) * radii.x, sin(angle) * radii.y))
 	draw_colored_polygon(points, color)

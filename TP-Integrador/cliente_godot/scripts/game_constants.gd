@@ -8,6 +8,9 @@ const BOARD_HEIGHT: float = 500.0
 const WORLD_END: float = 100.0
 const LANE_Y: Array[float] = [250.0, 400.0, 550.0]
 const ENTITY_SCALE: float = 0.72
+const INITIAL_GOLD: int = 200
+const INITIAL_BASE_HP: int = 100
+const TOTAL_WAVES: int = 10
 const TOWER_TYPES: Array[StringName] = [
 	&"MOPPER", &"STOCK_REPLENISHER", &"AUDIO_TOWER"
 ]

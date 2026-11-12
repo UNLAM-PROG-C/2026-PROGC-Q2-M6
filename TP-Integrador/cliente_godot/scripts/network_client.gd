@@ -1,7 +1,5 @@
 extends Node
 
-const ProtocolConstants = preload("res://scripts/protocol_constants.gd")
-
 signal connection_requested(host: String, port: int)
 signal connected_to_server
 signal connection_failed(message: String)
@@ -18,9 +16,22 @@ signal match_started_received
 signal error_received(payload: Dictionary)
 signal attack_received(payload: Dictionary)
 
-var player_id: int = -1
+const ProtocolConstants = preload("res://scripts/protocol_constants.gd")
+const FRAME_HEADER_SIZE: int = 4
+const MAX_FRAME_SIZE: int = 1048576
+const BITS_PER_BYTE: int = 8
+const BYTE_MASK: int = 0xFF
+const CONNECT_TIMEOUT_MSEC: int = 15000
+const MIN_PORT: int = 1
+const MAX_PORT: int = 65535
+const NO_PLAYER_ID: int = -1
+const DEFAULT_HOST: String = "127.0.0.1"
+const PLAYER_NAME: String = "godot-player"
+const CONNECT_ERROR_TEXT: String = "No se pudo conectar a %s:%d."
+
+var player_id: int = NO_PLAYER_ID
 var is_host: bool = false
-var server_host: String = "127.0.0.1"
+var server_host: String = DEFAULT_HOST
 var server_port: int = ProtocolConstants.DEFAULT_PORT
 var _tcp: StreamPeerTCP
 var _receive_buffer := PackedByteArray()
@@ -28,9 +39,20 @@ var _was_connected := false
 var _is_connecting := false
 var _hello_sent := false
 var _connection_started_at := 0
+var _payload_signals: Dictionary = {}
 
-const FRAME_HEADER_SIZE: int = 4
-const MAX_FRAME_SIZE: int = 1048576
+
+func _ready() -> void:
+	_payload_signals = {
+		ProtocolConstants.WELCOME: welcome_received,
+		ProtocolConstants.STATE_UPDATE: state_update_received,
+		ProtocolConstants.WAVE_START: wave_start_received,
+		ProtocolConstants.COUNTDOWN: countdown_received,
+		ProtocolConstants.BASE_DAMAGE: base_damage_received,
+		ProtocolConstants.GAME_OVER: game_over_received,
+		ProtocolConstants.ERROR: error_received,
+		ProtocolConstants.ATTACK: attack_received,
+	}
 
 
 func _process(_delta: float) -> void:
@@ -42,54 +64,25 @@ func _process(_delta: float) -> void:
 		_is_connecting = false
 		_handle_connected()
 		_read_available_data()
-		return
-	if status == StreamPeerTCP.STATUS_CONNECTING:
-		if _connection_started_at > 0 and Time.get_ticks_msec() - _connection_started_at > 15000:
-			_close_connection()
-			connection_failed.emit(
-				"No se pudo conectar a %s:%d." % [server_host, server_port]
-			)
-		return
-	if _was_connected and status != StreamPeerTCP.STATUS_CONNECTING:
-		_read_available_data()
-		_was_connected = false
-		_is_connecting = false
-		_close_connection()
-		_tcp = null
-		disconnected_from_server.emit()
-		if status == StreamPeerTCP.STATUS_ERROR:
-			connection_failed.emit(
-				"No se pudo conectar a %s:%d." % [server_host, server_port]
-			)
-		return
-	if _is_connecting and status != StreamPeerTCP.STATUS_CONNECTING:
-		_is_connecting = false
-		_close_connection()
-		_tcp = null
-		connection_failed.emit(
-			"No se pudo conectar a %s:%d." % [server_host, server_port]
-		)
+	elif status == StreamPeerTCP.STATUS_CONNECTING:
+		_check_connect_timeout()
+	elif _was_connected:
+		_handle_lost_connection(status)
+	elif _is_connecting:
+		_fail_connection()
 
 
 func request_connection(host: String, port: int) -> void:
-	if host.is_empty() or port < 1 or port > 65535:
+	if host.is_empty() or port < MIN_PORT or port > MAX_PORT:
 		push_error("A valid host and port are required")
 		return
-	server_host = host
-	server_port = port
-	player_id = -1
-	is_host = false
+	_reset_session(host, port)
 	_close_connection()
 	_tcp = StreamPeerTCP.new()
-	_receive_buffer.clear()
-	_hello_sent = false
 	_is_connecting = true
 	_connection_started_at = Time.get_ticks_msec()
-	var result := _tcp.connect_to_host(server_host, server_port)
-	if result != OK:
-		_is_connecting = false
+	if _tcp.connect_to_host(server_host, server_port) != OK:
 		_close_connection()
-		_tcp = null
 		connection_failed.emit("Could not start the connection.")
 		return
 	connection_requested.emit(server_host, server_port)
@@ -103,12 +96,45 @@ func send_message(message_type: StringName, payload: Dictionary) -> void:
 	if body_bytes.size() <= 0 or body_bytes.size() > MAX_FRAME_SIZE:
 		connection_failed.emit("The message size is invalid.")
 		return
-	var frame := _encode_frame(body_bytes)
-	_tcp.put_data(frame)
+	_tcp.put_data(_encode_frame(body_bytes))
 
 
 func is_connected_to_server() -> bool:
-	return _was_connected and _tcp != null and _tcp.get_status() == StreamPeerTCP.STATUS_CONNECTED
+	if not _was_connected or _tcp == null:
+		return false
+	return _tcp.get_status() == StreamPeerTCP.STATUS_CONNECTED
+
+
+func disconnect_from_server() -> void:
+	_close_connection()
+
+
+func _reset_session(host: String, port: int) -> void:
+	server_host = host
+	server_port = port
+	player_id = NO_PLAYER_ID
+	is_host = false
+	_receive_buffer.clear()
+	_hello_sent = false
+
+
+func _check_connect_timeout() -> void:
+	var elapsed := Time.get_ticks_msec() - _connection_started_at
+	if _connection_started_at > 0 and elapsed > CONNECT_TIMEOUT_MSEC:
+		_fail_connection()
+
+
+func _handle_lost_connection(status: StreamPeerTCP.Status) -> void:
+	_read_available_data()
+	_close_connection()
+	disconnected_from_server.emit()
+	if status == StreamPeerTCP.STATUS_ERROR:
+		connection_failed.emit(CONNECT_ERROR_TEXT % [server_host, server_port])
+
+
+func _fail_connection() -> void:
+	_close_connection()
+	connection_failed.emit(CONNECT_ERROR_TEXT % [server_host, server_port])
 
 
 func _handle_connected() -> void:
@@ -118,7 +144,7 @@ func _handle_connected() -> void:
 	_was_connected = true
 	connected_to_server.emit()
 	_hello_sent = true
-	send_message(ProtocolConstants.HELLO, {"name": "godot-player"})
+	send_message(ProtocolConstants.HELLO, {"name": PLAYER_NAME})
 
 
 func _read_available_data() -> void:
@@ -140,70 +166,60 @@ func _parse_frames() -> void:
 			connection_failed.emit("The server sent an invalid frame.")
 			_receive_buffer.clear()
 			return
-		if _receive_buffer.size() < FRAME_HEADER_SIZE + body_size:
+		var frame_end := FRAME_HEADER_SIZE + body_size
+		if _receive_buffer.size() < frame_end:
 			return
-		var body := _receive_buffer.slice(FRAME_HEADER_SIZE, FRAME_HEADER_SIZE + body_size)
-		_receive_buffer = _receive_buffer.slice(FRAME_HEADER_SIZE + body_size)
+		var body := _receive_buffer.slice(FRAME_HEADER_SIZE, frame_end)
+		_receive_buffer = _receive_buffer.slice(frame_end)
 		_dispatch_message(body)
 
 
 func _dispatch_message(body: PackedByteArray) -> void:
 	var message = JSON.parse_string(body.get_string_from_utf8())
-	if not message is Dictionary or not message.has("type"):
-		error_received.emit({"code": "INVALID_MESSAGE", "message": "Invalid server message."})
+	var error := _validate_message(message)
+	if not error.is_empty():
+		error_received.emit(error)
 		return
-	if not message.has("payload") or not message["payload"] is Dictionary:
-		error_received.emit({"code": "INVALID_MESSAGE", "message": "Invalid server payload."})
-		return
-	var message_type := StringName(message["type"])
-	if not ProtocolConstants.SERVER_MESSAGE_TYPES.has(message_type):
-		error_received.emit({"code": "UNKNOWN_MESSAGE", "message": "Unknown server message."})
-		return
-	var payload: Dictionary = message["payload"]
 	message_received.emit(message)
-	match String(message_type):
-		String(ProtocolConstants.WELCOME):
-			player_id = int(payload.get("player_id", player_id))
-			is_host = bool(payload.get("is_host", is_host))
-			welcome_received.emit(payload)
-		String(ProtocolConstants.STATE_UPDATE):
-			state_update_received.emit(payload)
-		String(ProtocolConstants.WAVE_START):
-			wave_start_received.emit(payload)
-		String(ProtocolConstants.COUNTDOWN):
-			countdown_received.emit(payload)
-		String(ProtocolConstants.BASE_DAMAGE):
-			base_damage_received.emit(payload)
-		String(ProtocolConstants.GAME_OVER):
-			game_over_received.emit(payload)
-		String(ProtocolConstants.MATCH_RESET):
-			match_reset_received.emit()
-		String(ProtocolConstants.MATCH_STARTED):
-			match_started_received.emit()
-		String(ProtocolConstants.ERROR):
-			error_received.emit(payload)
-		String(ProtocolConstants.ATTACK):
-			attack_received.emit(payload)
+	_route_message(StringName(message["type"]), message["payload"])
+
+
+func _validate_message(message: Variant) -> Dictionary:
+	if not message is Dictionary or not message.has("type"):
+		return {"code": "INVALID_MESSAGE", "message": "Invalid server message."}
+	if not message.has("payload") or not message["payload"] is Dictionary:
+		return {"code": "INVALID_MESSAGE", "message": "Invalid server payload."}
+	if not ProtocolConstants.SERVER_MESSAGE_TYPES.has(StringName(message["type"])):
+		return {"code": "UNKNOWN_MESSAGE", "message": "Unknown server message."}
+	return {}
+
+
+func _route_message(message_type: StringName, payload: Dictionary) -> void:
+	if message_type == ProtocolConstants.WELCOME:
+		player_id = int(payload.get("player_id", player_id))
+		is_host = bool(payload.get("is_host", is_host))
+	if _payload_signals.has(message_type):
+		(_payload_signals[message_type] as Signal).emit(payload)
+	elif message_type == ProtocolConstants.MATCH_RESET:
+		match_reset_received.emit()
+	elif message_type == ProtocolConstants.MATCH_STARTED:
+		match_started_received.emit()
 
 
 func _encode_frame(body: PackedByteArray) -> PackedByteArray:
 	var frame := PackedByteArray()
-	frame.append((body.size() >> 24) & 255)
-	frame.append((body.size() >> 16) & 255)
-	frame.append((body.size() >> 8) & 255)
-	frame.append(body.size() & 255)
+	for index in FRAME_HEADER_SIZE:
+		var shift := (FRAME_HEADER_SIZE - 1 - index) * BITS_PER_BYTE
+		frame.append((body.size() >> shift) & BYTE_MASK)
 	frame.append_array(body)
 	return frame
 
 
 func _decode_u32(bytes: PackedByteArray) -> int:
-	return (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3]
-
-
-
-func disconnect_from_server() -> void:
-	_close_connection()
-	_tcp = null
+	var value := 0
+	for index in FRAME_HEADER_SIZE:
+		value = (value << BITS_PER_BYTE) | bytes[index]
+	return value
 
 
 func _close_connection() -> void:
