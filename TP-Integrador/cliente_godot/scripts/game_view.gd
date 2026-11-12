@@ -92,7 +92,7 @@ func _draw_baseboard() -> void:
 	draw_rect(Rect2(0, BASEBOARD_TOP, size.x, FLOOR_TOP - BASEBOARD_TOP), Color("#9a5b3c"))
 	draw_rect(Rect2(0, BASEBOARD_TOP, size.x, 4), Color("#c27c55"))
 	draw_rect(Rect2(0, FLOOR_TOP - 3, size.x, 3), Color("#6e3d28"))
-	# Sombra suave del zócalo sobre el piso
+	# Soft baseboard shadow over the floor
 	draw_rect(Rect2(0, FLOOR_TOP, size.x, 6), Color(0, 0, 0, 0.08))
 
 
@@ -115,7 +115,7 @@ func _draw_floor() -> void:
 func _draw_lanes() -> void:
 	var lane_end: float = GameConstants.BOARD_LEFT + GameConstants.BOARD_WIDTH
 	for lane_y in GameConstants.LANE_Y:
-		# Franja tenue que marca el carril sin cortar el piso
+		# Faint stripe that marks the lane without cutting the floor
 		draw_rect(Rect2(0, lane_y - 44, lane_end, 88), Color("#b8ab92", 0.12))
 		var x: float = GameConstants.BOARD_LEFT
 		while x < lane_end:

@@ -8,7 +8,7 @@ param(
 $ErrorActionPreference = "SilentlyContinue"
 $rootDir = if ($InstallRoot) { $InstallRoot } else { $PSScriptRoot }
 
-# 1. Detener procesos del juego si están abiertos
+# 1. Stop game processes if they are running
 $gameProcesses = @(
   "CoTowerDefense",
   "TowerDefense",
@@ -20,7 +20,7 @@ foreach ($procName in $gameProcesses) {
     ForEach-Object { Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue }
 }
 
-# 2. Detener y eliminar contenedores/datos de Docker del juego si el daemon está activo
+# 2. Stop and remove the game Docker containers/data if the daemon is running
 try {
   $composeFile = Join-Path $rootDir "docker-compose.yml"
   if (-not (Test-Path $composeFile)) {
@@ -40,11 +40,11 @@ try {
 } catch {
 }
 
-# 3. Eliminar reglas de Firewall
+# 3. Remove firewall rules
 & netsh advfirewall firewall delete rule name="Tower Defense Local" 2>$null | Out-Null
 & netsh advfirewall firewall delete rule name="Tower Defense Tailscale" 2>$null | Out-Null
 
-# 4. Eliminar todos los datos de usuario, logs y temporales del juego
+# 4. Remove all game user data, logs and temp files
 $dataPaths = @(
   (Join-Path $env:APPDATA "Godot\app_userdata\Tower Defense Cooperative"),
   (Join-Path $env:APPDATA "Godot\app_userdata\Co-Tower Defense"),
@@ -60,7 +60,7 @@ foreach ($path in $dataPaths) {
   }
 }
 
-# 5. Eliminar accesos directos del juego en el escritorio
+# 5. Remove game desktop shortcuts
 $desktopFolders = @(
   [Environment]::GetFolderPath("CommonDesktopDirectory"),
   [Environment]::GetFolderPath("Desktop")
@@ -113,7 +113,7 @@ function Uninstall-Application {
   }
 }
 
-# 6. Desinstalación opcional de Docker Desktop y Radmin VPN
+# 6. Optional uninstall of Docker Desktop and Radmin VPN
 if ($RemoveDocker) {
   Get-Process -Name "Docker Desktop", "com.docker.backend", "com.docker.service" -ErrorAction SilentlyContinue |
     ForEach-Object { Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue }

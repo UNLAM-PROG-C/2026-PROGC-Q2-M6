@@ -1,8 +1,8 @@
 extends Node2D
 class_name FridgeView
 
-## Heladera exhibidora ("Frigorífico") que actúa como base del equipo.
-## Se dibuja de forma procedural y reacciona al HP de la base.
+## Display fridge ("Frigorífico") that acts as the team base.
+## Drawn procedurally and reacts to the base HP.
 
 const BODY_RECT: Rect2 = Rect2(1110, 176, 162, 420)
 const GLASS_TINT_OK: Color = Color("#cfefff")
@@ -73,7 +73,7 @@ func _draw_glass(g: Rect2) -> void:
 	draw_rect(g, Color("#5fb4e6"))
 	var row_h: float = (g.size.y - 12.0) / 2.0
 	var col_w: float = (g.size.x - 16.0) / 3.0
-	# Distribución: fila superior milanesas / cortes / cortes, inferior cortes / cortes / hielo
+	# Layout: top row cutlets / meat / meat, bottom row meat / meat / ice
 	var layout := [[&"milanesa", &"steak", &"steak"], [&"steak", &"steak", &"ice"]]
 	for row in 2:
 		for col in 3:
@@ -86,7 +86,7 @@ func _draw_glass(g: Rect2) -> void:
 			draw_rect(cell, tint)
 			draw_rect(cell, Color("#9ad6f5"), false, 1.0)
 			_fill_cell(cell, layout[row][col])
-	# Reflejos del vidrio
+	# Glass reflections
 	var shine := Color(1, 1, 1, 0.22)
 	for offset in [10.0, 70.0]:
 		var x0: float = g.position.x + offset
