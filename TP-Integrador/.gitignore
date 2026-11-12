@@ -11,3 +11,6 @@ __pycache__/
 cliente_godot/.godot/*
 cliente_godot/assets/**/*.import
 cliente_godot/scripts/**/*.uid
+
+# Godot export consumed by the Windows installer
+CoTowerDefense.pck
