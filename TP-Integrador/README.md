@@ -32,6 +32,15 @@
 
 El proyecto contiene un servidor TCP multihilo, un bucle de juego productor-consumidor, un cliente de red en Godot y un bot en Python para pruebas de concurrencia. El servidor TCP actúa como el proceso padre y un proceso hijo ejecutado mediante `exec` calcula patrones de oleadas deterministas a través de dos tuberías (*pipes*).
 
+### Hilo de sonido del cliente
+
+El cliente Godot reproduce la música en un hilo concurrente propio, implementado en el Autoload `SoundManager` (`cliente_godot/scripts/sound_manager.gd`):
+
+* El hilo principal solo encola comandos (`play_music()`, `stop_music()`) en una cola protegida por un `Mutex` (productor).
+* El hilo de audio (consumidor) vacía la cola. En Godot 4.4 o superior decodifica `assets/audio/two_left_socks.ogg` con `AudioStreamPlayback.mix_audio()` y empuja las muestras a un `AudioStreamGenerator` que lee el mezclador del motor.
+* En Godot 4.3 `mix_audio()` no existe: el hilo sigue consumiendo los comandos, pero delega la reproducción en un `AudioStreamPlayer` mediante `call_deferred`, porque el árbol de escena no es seguro entre hilos. El modo se detecta automáticamente al iniciar.
+* Con la música detenida, el hilo se bloquea en un `Semaphore` en lugar de hacer espera activa; al cerrar el juego se encola `QUIT` y se espera su finalización con `wait_to_finish()`.
+
 ## Requisitos
 
 * Docker Engine o Docker Desktop con Docker Compose.
