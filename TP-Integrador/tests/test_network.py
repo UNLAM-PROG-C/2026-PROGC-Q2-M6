@@ -26,22 +26,25 @@ from servidor.protocol import (
 from servidor.spawner import EnemySpawner
 
 
-@pytest.fixture
-def running_game():
-  stop_event = threading.Event()
-  server = GameServer("127.0.0.1", 0)
-  worker = start_wave_worker()
-  loop = build_game_loop(server, GameState(), queue.Queue(), stop_event)
-  spawner = EnemySpawner(
+def _build_spawner(loop, worker, stop_event: threading.Event) -> EnemySpawner:
+  return EnemySpawner(
     loop.enemy_queue,
     worker,
     loop.ready_event,
     loop.wave_complete_event,
     stop_event,
   )
-  server.start()
-  loop.start()
-  spawner.start()
+
+
+@pytest.fixture
+def running_game():
+  stop_event = threading.Event()
+  server = GameServer("127.0.0.1", 0)
+  worker = start_wave_worker()
+  loop = build_game_loop(server, GameState(), queue.Queue(), stop_event)
+  spawner = _build_spawner(loop, worker, stop_event)
+  for component in (server, loop, spawner):
+    component.start()
   yield server
   stop_event.set()
   spawner.join()
@@ -59,7 +62,11 @@ def _connect(server: GameServer, name: str) -> socket.socket:
   return client
 
 
-def _read_type(client: socket.socket, message_type: str, timeout: float = 3) -> dict:
+def _read_type(
+  client: socket.socket,
+  message_type: str,
+  timeout: float = 3,
+) -> dict:
   client.settimeout(0.2)
   deadline = time.monotonic() + timeout
   while time.monotonic() < deadline:
@@ -159,12 +166,17 @@ def test_two_clients_receive_shared_tower_state(running_game) -> None:
       "lane": 0,
       "pos": [20.0, 0.0],
     })
-    deadline = time.monotonic() + 3
-    towers = []
-    while time.monotonic() < deadline and not towers:
-      state = _read_type(second, STATE_UPDATE)
-      towers = state["payload"].get("towers", [])
+    towers = _wait_for_towers(second)
     assert towers[0]["tower_type"] == "MOPPER"
   finally:
     first.close()
     second.close()
+
+
+def _wait_for_towers(client: socket.socket, timeout: float = 3) -> list:
+  deadline = time.monotonic() + timeout
+  towers = []
+  while time.monotonic() < deadline and not towers:
+    state = _read_type(client, STATE_UPDATE)
+    towers = state["payload"].get("towers", [])
+  return towers

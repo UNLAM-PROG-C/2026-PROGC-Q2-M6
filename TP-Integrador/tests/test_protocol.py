@@ -8,7 +8,12 @@ import struct
 
 import pytest
 
-from servidor.protocol import ProtocolError, encode_message, recv_message, send_message
+from servidor.protocol import (
+  ProtocolError,
+  encode_message,
+  recv_message,
+  send_message,
+)
 
 
 class FragmentedSocket:

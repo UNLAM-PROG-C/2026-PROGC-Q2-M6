@@ -13,6 +13,8 @@ from servidor.constants import (
   INITIAL_BASE_HP,
   INITIAL_GOLD,
   LANE_COUNT,
+  POSITION_DIMENSIONS,
+  SELL_REFUND_DIVISOR,
   TOWER_STATS,
   TOWER_UPGRADES,
 )
@@ -105,7 +107,7 @@ class GameState:
       for index, tower in enumerate(self.towers):
         if tower.tower_id == tower_id:
           self.towers.pop(index)
-          refund = TOWER_STATS[tower.tower_type]["cost"] // 2
+          refund = TOWER_STATS[tower.tower_type]["cost"] // SELL_REFUND_DIVISOR
           self.gold += refund
           return refund
       raise ValueError("TOWER_NOT_FOUND")
@@ -113,23 +115,24 @@ class GameState:
   def upgrade_tower(self, tower_id: int) -> Tower:
     """Evolve a tower to the next configured type."""
     with self.gold_lock:
-      tower = next(
-        (item for item in self.towers if item.tower_id == tower_id), None
-      )
-      if tower is None:
-        raise ValueError("TOWER_NOT_FOUND")
+      tower = self._find_tower(tower_id)
       next_type = TOWER_UPGRADES.get(tower.tower_type)
       if next_type is None:
         raise ValueError("MAX_TOWER_LEVEL")
-      cost = max(
-        0,
-        TOWER_STATS[next_type]["cost"] - TOWER_STATS[tower.tower_type]["cost"],
-      )
+      cost = _upgrade_cost(tower.tower_type, next_type)
       if self.gold < cost:
         raise ValueError("INSUFFICIENT_GOLD")
       self.gold -= cost
       tower.tower_type = next_type
       return tower
+
+  def _find_tower(self, tower_id: int) -> Tower:
+    tower = next(
+      (item for item in self.towers if item.tower_id == tower_id), None
+    )
+    if tower is None:
+      raise ValueError("TOWER_NOT_FOUND")
+    return tower
 
   def reward_enemy(self, enemy_type: str) -> int:
     """Credit the configured reward for one defeated enemy."""
@@ -242,9 +245,7 @@ class GameState:
       raise ValueError("INVALID_LANE")
     if not 0 <= lane < LANE_COUNT:
       raise ValueError("INVALID_LANE")
-    if not isinstance(position, (tuple, list)) or len(position) != 2 or not all(
-      type(value) in (int, float) for value in position
-    ):
+    if not _is_valid_position(position):
       raise ValueError("INVALID_POSITION")
 
   @staticmethod
@@ -282,3 +283,16 @@ class GameState:
           self.defeat_enemy(enemy_id)
           defeated.append(enemy_id)
     return defeated
+
+
+def _upgrade_cost(current_type: str, next_type: str) -> int:
+  current_cost = TOWER_STATS[current_type]["cost"]
+  return max(0, TOWER_STATS[next_type]["cost"] - current_cost)
+
+
+def _is_valid_position(position: object) -> bool:
+  if not isinstance(position, (tuple, list)):
+    return False
+  if len(position) != POSITION_DIMENSIONS:
+    return False
+  return all(type(value) in (int, float) for value in position)

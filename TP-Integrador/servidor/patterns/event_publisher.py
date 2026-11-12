@@ -15,7 +15,11 @@ class EventPublisher:
   def __init__(self) -> None:
     self._observers: dict[str, list[Callable[[dict], None]]] = defaultdict(list)
 
-  def subscribe(self, event_name: str, callback: Callable[[dict], None]) -> None:
+  def subscribe(
+    self,
+    event_name: str,
+    callback: Callable[[dict], None],
+  ) -> None:
     """Register one callback for an event."""
     self._observers[event_name].append(callback)
 

@@ -17,6 +17,10 @@ from servidor.process_protocol import (
   write_process_message,
 )
 
+WORKER_ARGUMENT_COUNT = 3
+USAGE_EXIT_CODE = 2
+USAGE_MESSAGE = "Usage: python -m servidor.wave_worker READ_FD WRITE_FD"
+
 
 def _pattern_for_wave(wave: int) -> list[dict[str, Any]]:
   if isinstance(wave, bool) or not 1 <= wave <= TOTAL_WAVES:
@@ -61,9 +65,9 @@ def run_worker(read_fd: int, write_fd: int) -> None:
 
 
 def _main() -> int:
-  if len(sys.argv) != 3:
-    print("Usage: python -m servidor.wave_worker READ_FD WRITE_FD", file=sys.stderr)
-    return 2
+  if len(sys.argv) != WORKER_ARGUMENT_COUNT:
+    print(USAGE_MESSAGE, file=sys.stderr)
+    return USAGE_EXIT_CODE
   run_worker(int(sys.argv[1]), int(sys.argv[2]))
   return 0
 
