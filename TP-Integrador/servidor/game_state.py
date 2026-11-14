@@ -70,9 +70,6 @@ class GameState:
   towers: list[Tower] = field(default_factory=list)
   enemies: list[Enemy] = field(default_factory=list)
   last_attacks: list[dict] = field(default_factory=list, init=False, repr=False)
-  purchase_hook: Callable[[], None] | None = field(
-    default=None, repr=False, compare=False
-  )
   gold_lock: threading.Lock = field(
     default_factory=threading.Lock, init=False, repr=False, compare=False
   )

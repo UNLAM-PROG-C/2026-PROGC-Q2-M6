@@ -390,8 +390,6 @@ class GameLoop:
       return
     if was_empty and (self.roster_locked or self.state.current_wave > 0):
       self._reset_to_lobby()
-    if self.host_player_id is None:
-      self.host_player_id = client.player_id
     self._broadcast_lobby_status()
 
   def _register_client(self, client: ClientConnection) -> bool:

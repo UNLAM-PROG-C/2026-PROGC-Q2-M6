@@ -37,7 +37,6 @@ var _tcp: StreamPeerTCP
 var _receive_buffer := PackedByteArray()
 var _was_connected := false
 var _is_connecting := false
-var _hello_sent := false
 var _connection_started_at := 0
 var _payload_signals: Dictionary = {}
 
@@ -115,7 +114,6 @@ func _reset_session(host: String, port: int) -> void:
 	player_id = NO_PLAYER_ID
 	is_host = false
 	_receive_buffer.clear()
-	_hello_sent = false
 
 
 func _check_connect_timeout() -> void:
@@ -143,7 +141,6 @@ func _handle_connected() -> void:
 	_connection_started_at = 0
 	_was_connected = true
 	connected_to_server.emit()
-	_hello_sent = true
 	send_message(ProtocolConstants.HELLO, {"name": PLAYER_NAME})
 
 
