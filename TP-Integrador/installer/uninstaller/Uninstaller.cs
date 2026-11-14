@@ -154,7 +154,7 @@ internal static class Uninstaller
         bool removeDocker = Ask("¿También querés desinstalar Docker Desktop?");
         bool removeRadmin = Ask("¿También querés desinstalar Radmin VPN?");
 
-        // 1. Detener procesos del juego
+        // 1. Stop game processes
         string[] gameProcs = { "CoTowerDefense", "TowerDefense", "Godot_v4.3-stable_win64", "Godot_v4.3-stable_win64_console" };
         foreach (string procName in gameProcs)
         {
@@ -168,11 +168,11 @@ internal static class Uninstaller
             catch { }
         }
 
-        // 2. Eliminar reglas del Firewall
+        // 2. Remove firewall rules
         Run("netsh.exe", "advfirewall firewall delete rule name=\"Tower Defense Local\"");
         Run("netsh.exe", "advfirewall firewall delete rule name=\"Tower Defense Tailscale\"");
 
-        // 3. Eliminar todos los datos de usuario del juego
+        // 3. Remove all game user data
         string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
         string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         string commonAppData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
@@ -191,7 +191,7 @@ internal static class Uninstaller
         foreach (string dir in dataDirs)
             DeleteDirectorySafe(dir);
 
-        // 4. Eliminar accesos directos
+        // 4. Remove shortcuts
         string[] desktops = new string[]
         {
             Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory),
@@ -206,7 +206,7 @@ internal static class Uninstaller
             }
         }
 
-        // 5. Desinstalar dependencias opcionales si el usuario lo eligió
+        // 5. Uninstall optional dependencies if the user chose to
         if (removeDocker)
         {
             RemoveDependency("Docker Desktop", "Docker.DockerDesktop", "uninstall --quiet");
@@ -220,7 +220,7 @@ internal static class Uninstaller
                 DeleteFileSafe(Path.Combine(commonDesk, "Radmin VPN.lnk"));
         }
 
-        // 6. Buscar la instalación registrada en el Registro de Windows
+        // 6. Find the registered installation in the Windows Registry
         string uninstallString = null;
         string installLocation = null;
         RegistryView[] views = { RegistryView.Registry64, RegistryView.Registry32 };
@@ -251,7 +251,7 @@ internal static class Uninstaller
             Run("cmd.exe", "/C " + uninstallString + " /VERYSILENT /SUPPRESSMSGBOXES /NORESTART");
         }
 
-        // 7. Eliminar las carpetas del juego por completo (en segundo plano tras cerrar este proceso)
+        // 7. Remove the game folders entirely (in background after this process exits)
         string programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
         string dir1 = Path.Combine(programFiles, "CoTowerDefense");
         string dir2 = Path.Combine(programFiles, "TowerDefenseCooperative");

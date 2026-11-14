@@ -8,14 +8,24 @@ from dataclasses import dataclass
 from typing import Any
 
 from servidor.constants import (
-  LANE_COUNT,
+  EVENT_POLL_SECONDS,
   INTER_WAVE_DELAY_SECONDS,
+  LANE_COUNT,
   SPAWN_INTERVAL_SECONDS,
+  THREAD_JOIN_TIMEOUT_SECONDS,
   TOTAL_WAVES,
 )
 from servidor.game_state import Enemy
-from servidor.process_manager import ChildProcess, request_wave, send_stats_update
+from servidor.process_manager import (
+  ChildProcess,
+  request_wave,
+  send_stats_update,
+)
 from servidor.patterns.enemy_factory import create_enemy
+
+_PROCEED = "PROCEED"
+_RESTART = "RESTART"
+_STOP = "STOP"
 
 
 @dataclass
@@ -59,72 +69,97 @@ class EnemySpawner:
     """Start the producer thread."""
     self.thread.start()
 
-  def join(self, timeout: float = 2.0) -> None:
+  def join(self, timeout: float = THREAD_JOIN_TIMEOUT_SECONDS) -> None:
     """Wait for the producer thread."""
     self.thread.join(timeout)
 
   def run(self) -> None:
     """Wait for players and produce all deterministic waves."""
     while not self.stop_event.is_set():
-      if self._game_over():
-        if not self._wait_for_match_reset():
-          return
+      step = self._prepare_match()
+      if step == _RESTART:
         continue
-      while not self.stop_event.is_set() and not self.ready_event.wait(0.1):
-        if self._game_over():
-          if not self._wait_for_match_reset():
-            return
-          break
-        pass
-      if self._game_over():
-        continue
-      if self.stop_event.is_set():
+      if step == _STOP or self._run_waves() == _STOP:
         return
-      if self.wave_start_event is not None:
-        while (
-          not self.stop_event.is_set()
-          and not self._game_over()
-          and not self.wave_start_event.wait(0.1)
-        ):
-          pass
-        if self._game_over():
-          continue
-        if self.stop_event.is_set():
-          return
-        pass
-        self.wave_start_event.clear()
-      reset = False
-      for wave in range(1, TOTAL_WAVES + 1):
-        if self.stop_event.is_set() or self._game_over() or (
-          self.match_reset_event is not None and self.match_reset_event.is_set()
-        ):
-          reset = True
-          break
-        self._produce_wave(wave)
-        if not self._wait_for_wave_completion():
-          return
-        send_stats_update(self.worker, {
-          "wave": wave,
-          "enemies_defeated": 0,
-        })
-        if wave < TOTAL_WAVES and (
-          self._game_over() or self.stop_event.wait(INTER_WAVE_DELAY_SECONDS)
-        ):
-          if self._game_over():
-            continue
-          return
-      if reset:
+
+  def _prepare_match(self) -> str:
+    """Block until a match may start; tell run() how to continue."""
+    if self._game_over():
+      return _RESTART if self._wait_for_match_reset() else _STOP
+    if not self._wait_for_ready():
+      return _STOP
+    if self._game_over():
+      return _RESTART
+    if self.stop_event.is_set():
+      return _STOP
+    return self._wait_for_wave_start()
+
+  def _wait_for_ready(self) -> bool:
+    while not self.stop_event.is_set() and not self.ready_event.wait(
+      EVENT_POLL_SECONDS
+    ):
+      if self._game_over():
+        return self._wait_for_match_reset()
+    return True
+
+  def _wait_for_wave_start(self) -> str:
+    if self.wave_start_event is None:
+      return _PROCEED
+    while (
+      not self.stop_event.is_set()
+      and not self._game_over()
+      and not self.wave_start_event.wait(EVENT_POLL_SECONDS)
+    ):
+      pass
+    if self._game_over():
+      return _RESTART
+    if self.stop_event.is_set():
+      return _STOP
+    self.wave_start_event.clear()
+    return _PROCEED
+
+  def _run_waves(self) -> str:
+    for wave in range(1, TOTAL_WAVES + 1):
+      if self._match_interrupted():
         if self.match_reset_event is not None:
           self.match_reset_event.clear()
-        continue
-      self.ready_event.clear()
+        return _RESTART
+      if self._play_wave(wave) == _STOP:
+        return _STOP
+    self.ready_event.clear()
+    return _PROCEED
+
+  def _play_wave(self, wave: int) -> str:
+    self._produce_wave(wave)
+    if not self._wait_for_wave_completion():
+      return _STOP
+    send_stats_update(self.worker, {"wave": wave, "enemies_defeated": 0})
+    if wave == TOTAL_WAVES or self._game_over():
+      return _PROCEED
+    if self.stop_event.wait(INTER_WAVE_DELAY_SECONDS) and not self._game_over():
+      return _STOP
+    return _PROCEED
+
+  def _match_interrupted(self) -> bool:
+    return (
+      self.stop_event.is_set()
+      or self._game_over()
+      or self._reset_requested()
+    )
+
+  def _reset_requested(self) -> bool:
+    return (
+      self.match_reset_event is not None and self.match_reset_event.is_set()
+    )
 
   def _game_over(self) -> bool:
     return self.game_over_event is not None and self.game_over_event.is_set()
 
   def _wait_for_match_reset(self) -> bool:
     while not self.stop_event.is_set() and self._game_over():
-      if self.match_reset_event is not None and self.match_reset_event.wait(0.1):
+      if self.match_reset_event is not None and self.match_reset_event.wait(
+        EVENT_POLL_SECONDS
+      ):
         self.match_reset_event.clear()
         return True
     return not self.stop_event.is_set()
@@ -145,9 +180,9 @@ class EnemySpawner:
     while not self.stop_event.is_set():
       if self._game_over():
         return True
-      if self.match_reset_event is not None and self.match_reset_event.is_set():
+      if self._reset_requested():
         return True
-      if self.wave_complete_event.wait(0.1):
+      if self.wave_complete_event.wait(EVENT_POLL_SECONDS):
         return True
     return False
 

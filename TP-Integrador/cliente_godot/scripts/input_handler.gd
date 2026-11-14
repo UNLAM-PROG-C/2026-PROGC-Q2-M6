@@ -3,6 +3,10 @@ class_name GameInputHandler
 
 signal placement_rejected(message: String)
 
+const TOWER_PICK_RADIUS: float = 34.0
+const NO_TOWER: int = -1
+const INVALID_LANE_TEXT: String = "Seleccioná un carril válido."
+
 var selected_tower: StringName = &""
 var towers: Array[Dictionary] = []
 
@@ -24,21 +28,26 @@ func _input(event: InputEvent) -> void:
 
 func _handle_click(event: InputEventMouseButton) -> void:
 	var tower_id := _tower_at(event.position)
-	if tower_id >= 0:
-		if event.button_index == MOUSE_BUTTON_LEFT:
-			NetworkClient.send_message(ProtocolConstants.UPGRADE_TOWER, {"tower_id": tower_id})
-		elif event.button_index == MOUSE_BUTTON_RIGHT:
-			NetworkClient.send_message(ProtocolConstants.SELL_TOWER, {"tower_id": tower_id})
+	if tower_id != NO_TOWER:
+		_handle_tower_click(tower_id, event.button_index)
+	elif event.button_index == MOUSE_BUTTON_LEFT and not selected_tower.is_empty():
+		_try_place_tower(event.position)
+
+
+func _handle_tower_click(tower_id: int, button: MouseButton) -> void:
+	var payload := {"tower_id": tower_id}
+	if button == MOUSE_BUTTON_LEFT:
+		NetworkClient.send_message(ProtocolConstants.UPGRADE_TOWER, payload)
+	elif button == MOUSE_BUTTON_RIGHT:
+		NetworkClient.send_message(ProtocolConstants.SELL_TOWER, payload)
+
+
+func _try_place_tower(screen_position: Vector2) -> void:
+	if not _inside_board(screen_position):
+		placement_rejected.emit(INVALID_LANE_TEXT)
 		return
-	if event.button_index != MOUSE_BUTTON_LEFT:
-		return
-	if selected_tower.is_empty():
-		return
-	if not _inside_board(event.position):
-		placement_rejected.emit("Seleccioná un carril válido.")
-		return
-	var lane := _lane_at(event.position.y)
-	var world_x := _screen_to_world_x(event.position.x)
+	var lane := _lane_at(screen_position.y)
+	var world_x := _screen_to_world_x(screen_position.x)
 	NetworkClient.send_message(ProtocolConstants.BUY_TOWER, {
 		"tower_type": String(selected_tower),
 		"lane": lane,
@@ -49,9 +58,9 @@ func _handle_click(event: InputEventMouseButton) -> void:
 func _tower_at(screen_position: Vector2) -> int:
 	for tower in towers:
 		var position := _tower_screen_position(tower)
-		if position.distance_to(screen_position) <= 34.0:
-			return int(tower.get("tower_id", -1))
-	return -1
+		if position.distance_to(screen_position) <= TOWER_PICK_RADIUS:
+			return int(tower.get("tower_id", NO_TOWER))
+	return NO_TOWER
 
 
 func _tower_screen_position(tower: Dictionary) -> Vector2:

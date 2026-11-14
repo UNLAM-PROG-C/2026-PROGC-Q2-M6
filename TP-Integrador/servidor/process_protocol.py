@@ -45,7 +45,10 @@ def encode_process_message(
 
 
 def write_process_message(
-    file_descriptor: int, message_type: str, payload: Mapping[str, Any]) -> None:
+  file_descriptor: int,
+  message_type: str,
+  payload: Mapping[str, Any],
+) -> None:
   """Write one complete process message, handling partial writes."""
   frame = encode_process_message(message_type, payload)
   offset = 0
@@ -78,7 +81,9 @@ def _decode_body(body: bytes) -> dict[str, Any]:
   try:
     message = json.loads(body.decode("utf-8"))
   except (UnicodeDecodeError, json.JSONDecodeError) as error:
-    raise ProcessProtocolError("Process frame body is not valid JSON") from error
+    raise ProcessProtocolError(
+      "Process frame body is not valid JSON"
+    ) from error
   if not isinstance(message, dict):
     raise ProcessProtocolError("Process message must be a JSON object")
   if message.get("type") not in PROCESS_MESSAGE_TYPES:

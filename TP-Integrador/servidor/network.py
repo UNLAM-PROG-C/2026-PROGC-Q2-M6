@@ -8,11 +8,15 @@ import threading
 from dataclasses import dataclass
 from typing import Any
 
-from servidor.constants import CLIENT_SOCKET_TIMEOUT_SECONDS
+from servidor.constants import (
+  CLIENT_SOCKET_TIMEOUT_SECONDS,
+  THREAD_JOIN_TIMEOUT_SECONDS,
+)
 from servidor.protocol import (
   CLIENT_MESSAGE_TYPES,
   ProtocolError,
   recv_message,
+  send_message,
 )
 
 
@@ -91,17 +95,20 @@ class GameServer:
     for connection in connections:
       self.close_connection(connection)
 
-  def join(self, timeout: float = 2.0) -> None:
+  def join(self, timeout: float = THREAD_JOIN_TIMEOUT_SECONDS) -> None:
     """Wait briefly for acceptor and client threads to finish."""
     if self._acceptor_thread is not None:
       self._acceptor_thread.join(timeout)
     for thread in tuple(self._client_threads):
       thread.join(timeout)
 
-  def send(self, client: ClientConnection, message_type: str, payload: dict) -> bool:
+  def send(
+    self,
+    client: ClientConnection,
+    message_type: str,
+    payload: dict,
+  ) -> bool:
     """Send a message and report whether the socket is still usable."""
-    from servidor.protocol import send_message
-
     try:
       send_message(client.sock, message_type, payload)
     except OSError:
@@ -174,23 +181,28 @@ class GameServer:
   def _client_loop(self, client: ClientConnection) -> None:
     try:
       while not self.stop_event.is_set():
-        try:
-          message = recv_message(client.sock)
-        except socket.timeout:
-          continue
-        except ProtocolError as error:
-          self.command_queue.put(ClientCommand(
-            INVALID, client, {"error": str(error)}
-          ))
-          continue
-        except (ConnectionError, OSError):
+        if not self._receive_one(client):
           break
-        if message is None:
-          break
-        self._enqueue_message(client, message)
     finally:
       self.command_queue.put(ClientCommand(DISCONNECT, client))
       self.close_connection(client)
+
+  def _receive_one(self, client: ClientConnection) -> bool:
+    """Read one frame and enqueue it; return False when the peer is gone."""
+    try:
+      message = recv_message(client.sock)
+    except socket.timeout:
+      return True
+    except ProtocolError as error:
+      invalid = {"error": str(error)}
+      self.command_queue.put(ClientCommand(INVALID, client, invalid))
+      return True
+    except (ConnectionError, OSError):
+      return False
+    if message is None:
+      return False
+    self._enqueue_message(client, message)
+    return True
 
   def _enqueue_message(
     self,

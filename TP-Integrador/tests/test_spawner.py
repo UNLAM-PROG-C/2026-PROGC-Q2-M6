@@ -8,30 +8,24 @@ from servidor.constants import ENEMY_STATS
 from servidor.spawner import EnemySpawner, WaveStart
 
 
+def _single_enemy_wave(_worker: object, _wave: int) -> dict:
+  return {
+    "wave": 1,
+    "enemies": [{"type": "DISCOUNT_CHILD", "count": 1}],
+  }
+
+
 def test_spawner_enqueues_wave_and_enemy(monkeypatch) -> None:
   enemy_queue = queue.Queue()
-  ready_event = threading.Event()
-  wave_complete_event = threading.Event()
-  stop_event = threading.Event()
-  monkeypatch.setattr(
-    "servidor.spawner.request_wave",
-    lambda _worker, _wave: {
-      "wave": 1,
-      "enemies": [{"type": "DISCOUNT_CHILD", "count": 1}],
-    },
-  )
+  ready_event, stop_event = threading.Event(), threading.Event()
+  monkeypatch.setattr("servidor.spawner.request_wave", _single_enemy_wave)
   spawner = EnemySpawner(
-    enemy_queue,
-    object(),
-    ready_event,
-    wave_complete_event,
-    stop_event,
+    enemy_queue, object(), ready_event, threading.Event(), stop_event
   )
 
   ready_event.set()
   spawner.start()
-  first = enemy_queue.get(timeout=2)
-  second = enemy_queue.get(timeout=2)
+  first, second = (enemy_queue.get(timeout=2) for _ in range(2))
   stop_event.set()
   spawner.join()
 

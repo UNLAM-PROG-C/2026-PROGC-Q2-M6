@@ -2,7 +2,11 @@
 
 import threading
 
-from servidor.constants import BASE_DAMAGE_PER_ENEMY, INITIAL_BASE_HP, INITIAL_GOLD
+from servidor.constants import (
+  BASE_DAMAGE_PER_ENEMY,
+  INITIAL_BASE_HP,
+  INITIAL_GOLD,
+)
 from servidor.game_state import Enemy, GameState, Tower
 
 
@@ -42,9 +46,9 @@ def test_game_state_buys_and_serializes_a_tower() -> None:
   }]
 
 
-def test_purchase_race_accepts_only_one_tower() -> None:
-  state = GameState(gold=50)
-  start_barrier = threading.Barrier(3)
+def _buy_concurrently(state: GameState, buyers: int) -> list[str]:
+  """Release every buyer at once through a barrier and collect errors."""
+  start_barrier = threading.Barrier(buyers + 1)
   errors: list[str] = []
 
   def buy(position: tuple[float, float]) -> None:
@@ -55,12 +59,26 @@ def test_purchase_race_accepts_only_one_tower() -> None:
       errors.append(str(error))
 
   threads = [threading.Thread(target=buy, args=((10.0 + index, 20.0),))
-             for index in range(2)]
+             for index in range(buyers)]
+  _release_and_join(threads, start_barrier)
+  return errors
+
+
+def _release_and_join(
+  threads: list[threading.Thread],
+  start_barrier: threading.Barrier,
+) -> None:
   for thread in threads:
     thread.start()
   start_barrier.wait(timeout=2)
   for thread in threads:
     thread.join(timeout=3)
+
+
+def test_purchase_race_accepts_only_one_tower() -> None:
+  state = GameState(gold=50)
+
+  errors = _buy_concurrently(state, 2)
 
   assert errors == ["INSUFFICIENT_GOLD"]
   assert len(state.towers) == 1

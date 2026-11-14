@@ -9,9 +9,14 @@ from typing import Any
 
 from servidor.constants import (
   BASE_DAMAGE_PER_ENEMY,
+  COUNTDOWN_STEP_SECONDS,
+  FIRST_WAVE_COUNTDOWN_SECONDS,
   GAME_TICK_SECONDS,
   MAX_PLAYERS,
   MIN_PLAYERS,
+  REJECTED_CLIENT_CLOSE_DELAY_SECONDS,
+  SERVER_FULL_MESSAGE,
+  THREAD_JOIN_TIMEOUT_SECONDS,
   TOTAL_WAVES,
 )
 from servidor.game_state import GameState
@@ -68,23 +73,10 @@ class GameLoop:
     self.enemy_queue = enemy_queue
     self.stop_event = stop_event
     self.clients_lock = server.clients_lock
-    self.clients: dict[int, ClientConnection] = {}
-    self.host_player_id: int | None = None
-    self.wave_start_event = threading.Event()
-    self.match_reset_event = threading.Event()
-    self.countdown_active = False
-    self.countdown_generation = 0
-    self.participants: set[int] = set()
-    self.roster_locked = False
-    self.host_player_id: int | None = None
-    self.start_requested = False
-    self.first_tower_placed = False
-    self.game_over_sent = False
-    self.ready_event = threading.Event()
-    self.wave_complete_event = threading.Event()
-    self.game_over_event = threading.Event()
+    self._init_roster()
     self.events = EventPublisher()
-    self.enemies_defeated = 0
+    self._create_sync_events()
+    self._init_match_flags()
     self._subscribe_to_events()
     self.thread = threading.Thread(
       target=self.run,
@@ -92,11 +84,32 @@ class GameLoop:
       daemon=True,
     )
 
+  def _init_roster(self) -> None:
+    self.clients: dict[int, ClientConnection] = {}
+    self.host_player_id: int | None = None
+    self.participants: set[int] = set()
+
+  def _create_sync_events(self) -> None:
+    self.wave_start_event = threading.Event()
+    self.match_reset_event = threading.Event()
+    self.ready_event = threading.Event()
+    self.wave_complete_event = threading.Event()
+    self.game_over_event = threading.Event()
+
+  def _init_match_flags(self) -> None:
+    self.countdown_active = False
+    self.countdown_generation = 0
+    self.roster_locked = False
+    self.start_requested = False
+    self.first_tower_placed = False
+    self.game_over_sent = False
+    self.enemies_defeated = 0
+
   def start(self) -> None:
     """Start the game loop."""
     self.thread.start()
 
-  def join(self, timeout: float = 2.0) -> None:
+  def join(self, timeout: float = THREAD_JOIN_TIMEOUT_SECONDS) -> None:
     """Wait for the game loop."""
     self.thread.join(timeout)
 
@@ -105,19 +118,18 @@ class GameLoop:
     next_tick = time.monotonic()
     while not self.stop_event.is_set():
       self._drain_commands()
-      if self.game_over_event.is_set():
-        self._broadcast_state()
-        next_tick += GAME_TICK_SECONDS
-        self.stop_event.wait(max(0.0, next_tick - time.monotonic()))
-        continue
-      self._drain_enemies()
-      self._resolve_attacks()
-      reached = self.state.advance_enemies(GAME_TICK_SECONDS)
-      self._handle_reached_enemies(reached)
-      self._complete_wave_if_idle()
+      if not self.game_over_event.is_set():
+        self._simulate_tick()
       self._broadcast_state()
       next_tick += GAME_TICK_SECONDS
       self.stop_event.wait(max(0.0, next_tick - time.monotonic()))
+
+  def _simulate_tick(self) -> None:
+    self._drain_enemies()
+    self._resolve_attacks()
+    reached = self.state.advance_enemies(GAME_TICK_SECONDS)
+    self._handle_reached_enemies(reached)
+    self._complete_wave_if_idle()
 
   def _drain_commands(self) -> None:
     while True:
@@ -142,15 +154,14 @@ class GameLoop:
       self._remove_client(command.client)
       return
     if command.kind == INVALID:
-      self._send_error(command.client, "INVALID_MESSAGE", self._error_text(command))
+      error_text = self._error_text(command)
+      self._send_error(command.client, "INVALID_MESSAGE", error_text)
       return
     if command.kind == MESSAGE and command.message is not None:
       self._handle_message(command.client, command.message)
 
-  def _handle_message(self, client: ClientConnection, message: dict[str, Any]) -> None:
-    message_type = message["type"]
-    payload = message["payload"]
-    handlers = {
+  def _message_handlers(self) -> dict[str, Any]:
+    return {
       HELLO: self._handle_hello,
       READY: self._handle_ready,
       START_GAME: self._handle_start_game,
@@ -160,13 +171,19 @@ class GameLoop:
       SELL_TOWER: self._handle_sell,
       PING: self._handle_ping,
     }
-    handler = handlers.get(message_type)
+
+  def _handle_message(
+    self,
+    client: ClientConnection,
+    message: dict[str, Any],
+  ) -> None:
+    handler = self._message_handlers().get(message["type"])
     if handler is None:
       self._send_error(client, "UNKNOWN_MESSAGE", "Unknown client message")
       return
     try:
-      handler(client, payload)
-    except (KeyError, TypeError) as error:
+      handler(client, message["payload"])
+    except (KeyError, TypeError):
       self._send_error(client, "INVALID_MESSAGE", "Invalid message payload")
     except ValueError as error:
       code = str(error)
@@ -174,31 +191,41 @@ class GameLoop:
 
   def _handle_hello(self, client: ClientConnection, payload: dict) -> None:
     with self.server.clients_lock:
-      if client.player_id not in self.clients:
-        player_count = -1
-      else:
-        player_count = len(self.clients)
-    if player_count < 0:
-      self._send_error(client, "MAX_PLAYERS", "Servidor lleno (4/4 jugadores).")
+      is_registered = client.player_id in self.clients
+      player_count = len(self.clients)
+    if not is_registered:
+      self._send_error(client, "MAX_PLAYERS", SERVER_FULL_MESSAGE)
       return
     name = payload.get("name", f"player-{client.player_id}")
     if not isinstance(name, str) or not name.strip():
       raise ValueError("INVALID_NAME")
     client.name = name.strip()
-    self.server.send(client, WELCOME, {
+    welcome = self._welcome_payload(client, player_count)
+    self.server.send(client, WELCOME, welcome)
+
+  def _welcome_payload(
+    self,
+    client: ClientConnection,
+    player_count: int,
+  ) -> dict[str, Any]:
+    return {
       "player_id": client.player_id,
       "players": player_count,
       "min_players": MIN_PLAYERS,
       "game_started": self.roster_locked,
       "is_host": client.player_id == self.host_player_id,
-    })
+    }
 
   def _handle_ready(self, client: ClientConnection, _payload: dict) -> None:
     # READY is retained for compatibility; only START_GAME starts a match.
     if self.roster_locked and client.player_id not in self.participants:
       raise ValueError("GAME_ALREADY_STARTED")
 
-  def _handle_start_game(self, client: ClientConnection, _payload: dict) -> None:
+  def _handle_start_game(
+    self,
+    client: ClientConnection,
+    _payload: dict,
+  ) -> None:
     if client.player_id != self.host_player_id:
       raise ValueError("ONLY_HOST_CAN_START")
     if self.roster_locked:
@@ -212,7 +239,11 @@ class GameLoop:
     self._broadcast_lobby_status()
     self.server.broadcast(MATCH_STARTED, {}, self.clients)
 
-  def _handle_reset_match(self, client: ClientConnection, _payload: dict) -> None:
+  def _handle_reset_match(
+    self,
+    _client: ClientConnection,
+    _payload: dict,
+  ) -> None:
     if not self.roster_locked:
       raise ValueError("GAME_NOT_STARTED")
     self._reset_match()
@@ -324,41 +355,38 @@ class GameLoop:
   def _reset_to_lobby(self) -> None:
     was_running = self.roster_locked or self.state.current_wave > 0
     self.state.reset_match()
-    while not self.enemy_queue.empty():
-      try:
-        self.enemy_queue.get_nowait()
-      except queue.Empty:
-        break
-    self.game_over_sent = False
-    self.game_over_event.clear()
+    self._clear_enemy_queue()
+    self._clear_match_flags()
     self.start_requested = False
-    self.first_tower_placed = False
     self.roster_locked = False
     self.participants.clear()
+    if was_running:
+      self.match_reset_event.set()
+
+  def _clear_match_flags(self) -> None:
+    self.game_over_sent = False
+    self.game_over_event.clear()
+    self.first_tower_placed = False
     self.ready_event.clear()
     self.wave_complete_event.clear()
     self.wave_start_event.clear()
     self.countdown_active = False
     self.countdown_generation += 1
-    if was_running:
-      self.match_reset_event.set()
     self.enemies_defeated = 0
+
+  def _clear_enemy_queue(self) -> None:
+    while not self.enemy_queue.empty():
+      try:
+        self.enemy_queue.get_nowait()
+      except queue.Empty:
+        break
 
   def _add_client(self, client: ClientConnection) -> None:
     with self.server.clients_lock:
       was_empty = len(self.clients) == 0
-      if len(self.clients) >= MAX_PLAYERS:
-        reject = True
-      else:
-        self.clients[client.player_id] = client
-        if self.host_player_id is None:
-          self.host_player_id = client.player_id
-        reject = False
-    if reject:
-      self._send_error(client, "MAX_PLAYERS", "Servidor lleno (4/4 jugadores).")
-      timer = threading.Timer(0.3, self.server.close_connection, args=(client,))
-      timer.daemon = True
-      timer.start()
+      accepted = self._register_client(client)
+    if not accepted:
+      self._reject_client(client)
       return
     if was_empty and (self.roster_locked or self.state.current_wave > 0):
       self._reset_to_lobby()
@@ -366,34 +394,40 @@ class GameLoop:
       self.host_player_id = client.player_id
     self._broadcast_lobby_status()
 
+  def _register_client(self, client: ClientConnection) -> bool:
+    """Store a client unless the match is full; caller holds the lock."""
+    if len(self.clients) >= MAX_PLAYERS:
+      return False
+    self.clients[client.player_id] = client
+    if self.host_player_id is None:
+      self.host_player_id = client.player_id
+    return True
+
+  def _reject_client(self, client: ClientConnection) -> None:
+    self._send_error(client, "MAX_PLAYERS", SERVER_FULL_MESSAGE)
+    timer = threading.Timer(
+      REJECTED_CLIENT_CLOSE_DELAY_SECONDS,
+      self.server.close_connection,
+      args=(client,),
+    )
+    timer.daemon = True
+    timer.start()
+
   def _broadcast_lobby_status(self) -> None:
     with self.server.clients_lock:
       clients = tuple(self.clients.values())
     for client in clients:
-      self.server.send(client, WELCOME, {
-        "player_id": client.player_id,
-        "players": len(clients),
-        "min_players": MIN_PLAYERS,
-        "game_started": self.roster_locked,
-        "is_host": client.player_id == self.host_player_id,
-      })
+      welcome = self._welcome_payload(client, len(clients))
+      self.server.send(client, WELCOME, welcome)
 
   def _reset_match(self) -> None:
     self.state.reset_match()
-    self.game_over_sent = False
-    self.game_over_event.clear()
+    self._clear_match_flags()
     self.start_requested = True
-    self.first_tower_placed = False
     self.roster_locked = True
     with self.server.clients_lock:
       self.participants = set(self.clients)
-    self.ready_event.clear()
-    self.wave_complete_event.clear()
-    self.wave_start_event.clear()
-    self.countdown_active = False
-    self.countdown_generation += 1
     self.match_reset_event.set()
-    self.enemies_defeated = 0
 
   def _begin_first_wave_countdown(self) -> None:
     self.countdown_active = True
@@ -407,11 +441,11 @@ class GameLoop:
     ).start()
 
   def _run_first_wave_countdown(self, generation: int) -> None:
-    for seconds in (3, 2, 1):
+    for seconds in range(FIRST_WAVE_COUNTDOWN_SECONDS, 0, -1):
       if generation != self.countdown_generation:
         return
       self.server.broadcast(COUNTDOWN, {"seconds": seconds}, self.clients)
-      if self.stop_event.wait(1.0):
+      if self.stop_event.wait(COUNTDOWN_STEP_SECONDS):
         return
     if generation != self.countdown_generation:
       return
@@ -430,11 +464,7 @@ class GameLoop:
     self.game_over_event.set()
     self.countdown_generation += 1
     self.countdown_active = False
-    while not self.enemy_queue.empty():
-      try:
-        self.enemy_queue.get_nowait()
-      except queue.Empty:
-        break
+    self._clear_enemy_queue()
     self.server.broadcast(GAME_OVER, {
       "result": result,
       "reason": reason,
@@ -444,7 +474,12 @@ class GameLoop:
     if not self.thread.is_alive():
       self.stop_event.set()
 
-  def _send_error(self, client: ClientConnection, code: str, message: str) -> None:
+  def _send_error(
+    self,
+    client: ClientConnection,
+    code: str,
+    message: str,
+  ) -> None:
     self.server.send(client, ERROR, {"code": code, "message": message})
 
   @staticmethod

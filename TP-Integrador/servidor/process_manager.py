@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Any, Mapping
 
 from servidor.constants import (
+  EXEC_FAILURE_EXIT_CODE,
   TOTAL_WAVES,
   WORKER_MODULE,
 )
@@ -56,7 +57,7 @@ def _exec_worker(read_fd: int, write_fd: int) -> None:
   try:
     os.execve(sys.executable, arguments, _worker_environment())
   except OSError:
-    os._exit(127)
+    os._exit(EXEC_FAILURE_EXIT_CODE)
 
 
 def _close_child_pipe_ends(
@@ -118,12 +119,17 @@ def start_wave_worker() -> ChildProcess:
     return worker
   except BaseException:
     _close_child_pipe_ends(*pipes)
-    if pid is not None:
-      try:
-        os.waitpid(pid, 0)
-      except ChildProcessError:
-        pass
+    _reap_failed_worker(pid)
     raise
+
+
+def _reap_failed_worker(pid: int | None) -> None:
+  if pid is None:
+    return
+  try:
+    os.waitpid(pid, 0)
+  except ChildProcessError:
+    pass
 
 
 def _validate_wave(wave: int) -> None:
@@ -132,7 +138,8 @@ def _validate_wave(wave: int) -> None:
 
 
 def _validate_pattern(payload: dict[str, Any], wave: int) -> None:
-  if payload.get("wave") != wave or not isinstance(payload.get("enemies"), list):
+  enemies = payload.get("enemies")
+  if payload.get("wave") != wave or not isinstance(enemies, list):
     raise ChildProcessError("Wave worker returned an invalid pattern")
   for enemy in payload["enemies"]:
     if not isinstance(enemy, dict):
@@ -183,7 +190,9 @@ def shutdown_worker(worker: ChildProcess) -> None:
     _close_fd(worker.parent_write_fd)
     _close_fd(worker.parent_read_fd)
     worker.exit_status = _wait_for_worker(worker)
-    if not os.WIFEXITED(worker.exit_status) or os.WEXITSTATUS(worker.exit_status) != 0:
-      raise ChildProcessError(
-        f"Wave worker exited with status {worker.exit_status}"
-      )
+    _check_exit_status(worker.exit_status)
+
+
+def _check_exit_status(status: int) -> None:
+  if not os.WIFEXITED(status) or os.WEXITSTATUS(status) != 0:
+    raise ChildProcessError(f"Wave worker exited with status {status}")
