@@ -13,7 +13,7 @@ func _ready() -> void:
 	NetworkClient.game_over_received.connect(_on_game_over)
 	NetworkClient.match_started_received.connect(_on_match_started_received)
 	NetworkClient.match_reset_received.connect(_on_match_reset_received)
-	game_view.game_over.play_again.connect(_on_play_again)
+	game_view.game_over.play_again.connect(_on_restart_requested)
 	game_view.restart_requested.connect(_on_restart_requested)
 
 
@@ -34,10 +34,6 @@ func _on_match_started_received() -> void:
 
 func _on_game_over(_payload: Dictionary) -> void:
 	game_view.visible = true
-
-
-func _on_play_again() -> void:
-	_on_restart_requested()
 
 
 func _on_restart_requested() -> void:

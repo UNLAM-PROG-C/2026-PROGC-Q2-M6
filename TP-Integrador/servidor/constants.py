@@ -17,8 +17,14 @@ CLIENT_SOCKET_TIMEOUT_SECONDS = 0.2
 READY_BARRIER_TIMEOUT_SECONDS = 2.0
 THREAD_JOIN_TIMEOUT_SECONDS = 2.0
 EVENT_POLL_SECONDS = 0.1
+FIRST_WAVE = 1
 FIRST_WAVE_COUNTDOWN_SECONDS = 3
 COUNTDOWN_STEP_SECONDS = 1.0
+COUNTDOWN_GO_SECONDS = 0
+COUNTDOWN_GO_TEXT = "GO"
+FIRST_PLAYER_ID = 1
+FIRST_ENEMY_ID = 1
+FIRST_TOWER_LEVEL = 1
 REJECTED_CLIENT_CLOSE_DELAY_SECONDS = 0.3
 SERVER_FULL_MESSAGE = (
   f"Servidor lleno ({MAX_PLAYERS}/{MAX_PLAYERS} jugadores)."
@@ -26,6 +32,7 @@ SERVER_FULL_MESSAGE = (
 SELL_REFUND_DIVISOR = 2
 POSITION_DIMENSIONS = 2
 EXEC_FAILURE_EXIT_CODE = 127
+ENEMY_SPAWN_POSITION = 0.0
 ENEMY_EXIT_POSITION = 100.0
 ENEMY_SPEEDS = {
   "NORMAL": 10.0,
@@ -59,17 +66,10 @@ WAVE_PATTERNS = {
 }
 
 TOWER_STATS = {
-  "MOPPER": {
-    "cost": 50, "damage": 10, "cooldown_seconds": 1.0,
-    "special": "PUDDLE",
-  },
-  "STOCK_REPLENISHER": {
-    "cost": 120, "damage": 40, "cooldown_seconds": 3.0,
-    "special": "LINE_AREA",
-  },
+  "MOPPER": {"cost": 50, "damage": 10, "cooldown_seconds": 1.0},
+  "STOCK_REPLENISHER": {"cost": 120, "damage": 40, "cooldown_seconds": 3.0},
   "AUDIO_TOWER": {
     "cost": 150, "damage": 15, "cooldown_seconds": 2.0,
-    "special": "SONIC_STUN",
     "stun_seconds": 0.5,
   },
 }

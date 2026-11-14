@@ -4,6 +4,7 @@ import threading
 
 from servidor.constants import (
   BASE_DAMAGE_PER_ENEMY,
+  ENEMY_STATS,
   INITIAL_BASE_HP,
   INITIAL_GOLD,
 )
@@ -137,15 +138,22 @@ def test_concurrent_sale_refunds_once() -> None:
 
 def test_concurrent_rewards_are_not_lost() -> None:
   state = GameState()
+  enemy_count = 20
+  state.enemies.extend(
+    Enemy(enemy_id, "DISCOUNT_CHILD", 0, 0, (0.0, 0.0))
+    for enemy_id in range(enemy_count)
+  )
   threads = [threading.Thread(
-    target=state.reward_enemy, args=("DISCOUNT_CHILD",)
-  ) for _ in range(20)]
+    target=state.defeat_enemy, args=(enemy_id,)
+  ) for enemy_id in range(enemy_count)]
   for thread in threads:
     thread.start()
   for thread in threads:
     thread.join(timeout=2)
 
-  assert state.gold == INITIAL_GOLD + 20 * 5
+  reward = ENEMY_STATS["DISCOUNT_CHILD"]["reward"]
+  assert state.gold == INITIAL_GOLD + enemy_count * reward
+  assert state.enemies == []
 
 
 def test_defeated_enemy_is_removed_and_rewarded_once() -> None:

@@ -9,6 +9,8 @@ from typing import Any
 
 from servidor.constants import (
   BASE_DAMAGE_PER_ENEMY,
+  COUNTDOWN_GO_SECONDS,
+  COUNTDOWN_GO_TEXT,
   COUNTDOWN_STEP_SECONDS,
   FIRST_WAVE_COUNTDOWN_SECONDS,
   GAME_TICK_SECONDS,
@@ -35,12 +37,31 @@ from servidor.protocol import (
   BASE_DAMAGE,
   COUNTDOWN,
   ERROR,
+  ERROR_GAME_ALREADY_STARTED,
+  ERROR_GAME_NOT_STARTED,
+  ERROR_INSUFFICIENT_GOLD,
+  ERROR_INSUFFICIENT_PLAYERS,
+  ERROR_INVALID_LANE,
+  ERROR_INVALID_MESSAGE,
+  ERROR_INVALID_NAME,
+  ERROR_INVALID_POSITION,
+  ERROR_INVALID_TOWER_TYPE,
+  ERROR_MAX_PLAYERS,
+  ERROR_MAX_TOWER_LEVEL,
+  ERROR_ONLY_HOST_CAN_START,
+  ERROR_POSITION_OCCUPIED,
+  ERROR_TOWER_NOT_FOUND,
+  ERROR_UNKNOWN_MESSAGE,
   GAME_OVER,
   MATCH_RESET,
   MATCH_STARTED,
   PING,
   READY,
+  REASON_ALL_WAVES_CLEARED,
+  REASON_BASE_DESTROYED,
   RESET_MATCH,
+  RESULT_DEFEAT,
+  RESULT_VICTORY,
   START_GAME,
   SELL_TOWER,
   STATE_UPDATE,
@@ -155,7 +176,7 @@ class GameLoop:
       return
     if command.kind == INVALID:
       error_text = self._error_text(command)
-      self._send_error(command.client, "INVALID_MESSAGE", error_text)
+      self._send_error(command.client, ERROR_INVALID_MESSAGE, error_text)
       return
     if command.kind == MESSAGE and command.message is not None:
       self._handle_message(command.client, command.message)
@@ -179,12 +200,12 @@ class GameLoop:
   ) -> None:
     handler = self._message_handlers().get(message["type"])
     if handler is None:
-      self._send_error(client, "UNKNOWN_MESSAGE", "Unknown client message")
+      self._send_error(client, ERROR_UNKNOWN_MESSAGE, "Unknown client message")
       return
     try:
       handler(client, message["payload"])
     except (KeyError, TypeError):
-      self._send_error(client, "INVALID_MESSAGE", "Invalid message payload")
+      self._send_error(client, ERROR_INVALID_MESSAGE, "Invalid message payload")
     except ValueError as error:
       code = str(error)
       self._send_error(client, code, self._error_message(code))
@@ -194,11 +215,11 @@ class GameLoop:
       is_registered = client.player_id in self.clients
       player_count = len(self.clients)
     if not is_registered:
-      self._send_error(client, "MAX_PLAYERS", SERVER_FULL_MESSAGE)
+      self._send_error(client, ERROR_MAX_PLAYERS, SERVER_FULL_MESSAGE)
       return
     name = payload.get("name", f"player-{client.player_id}")
     if not isinstance(name, str) or not name.strip():
-      raise ValueError("INVALID_NAME")
+      raise ValueError(ERROR_INVALID_NAME)
     client.name = name.strip()
     welcome = self._welcome_payload(client, player_count)
     self.server.send(client, WELCOME, welcome)
@@ -219,7 +240,7 @@ class GameLoop:
   def _handle_ready(self, client: ClientConnection, _payload: dict) -> None:
     # READY is retained for compatibility; only START_GAME starts a match.
     if self.roster_locked and client.player_id not in self.participants:
-      raise ValueError("GAME_ALREADY_STARTED")
+      raise ValueError(ERROR_GAME_ALREADY_STARTED)
 
   def _handle_start_game(
     self,
@@ -227,12 +248,12 @@ class GameLoop:
     _payload: dict,
   ) -> None:
     if client.player_id != self.host_player_id:
-      raise ValueError("ONLY_HOST_CAN_START")
+      raise ValueError(ERROR_ONLY_HOST_CAN_START)
     if self.roster_locked:
-      raise ValueError("GAME_ALREADY_STARTED")
+      raise ValueError(ERROR_GAME_ALREADY_STARTED)
     with self.server.clients_lock:
       if len(self.clients) < MIN_PLAYERS:
-        raise ValueError("INSUFFICIENT_PLAYERS")
+        raise ValueError(ERROR_INSUFFICIENT_PLAYERS)
       self.participants = set(self.clients)
     self.start_requested = True
     self.roster_locked = True
@@ -245,7 +266,7 @@ class GameLoop:
     _payload: dict,
   ) -> None:
     if not self.roster_locked:
-      raise ValueError("GAME_NOT_STARTED")
+      raise ValueError(ERROR_GAME_NOT_STARTED)
     self._reset_match()
     self.server.broadcast(MATCH_RESET, {}, self.clients)
 
@@ -255,7 +276,7 @@ class GameLoop:
     lane = payload["lane"]
     raw_position = payload["pos"]
     if not isinstance(raw_position, (list, tuple)):
-      raise ValueError("INVALID_POSITION")
+      raise ValueError(ERROR_INVALID_POSITION)
     position = tuple(raw_position)
     self.state.buy_tower(tower_type, lane, position)
     if not self.first_tower_placed:
@@ -306,7 +327,7 @@ class GameLoop:
         "base_hp": base_hp,
       })
       if base_hp <= 0:
-        self._finish_game("DEFEAT", "BASE_DESTROYED")
+        self._finish_game(RESULT_DEFEAT, REASON_BASE_DESTROYED)
         return
 
   def _broadcast_base_damage(self, payload: dict) -> None:
@@ -324,7 +345,7 @@ class GameLoop:
       and self.enemy_queue.empty()
     ):
       if self.state.current_wave >= TOTAL_WAVES:
-        self._finish_game("VICTORY", "ALL_WAVES_CLEARED")
+        self._finish_game(RESULT_VICTORY, REASON_ALL_WAVES_CLEARED)
       else:
         self.events.publish(WAVE_CLEARED, {"wave": self.state.current_wave})
 
@@ -402,7 +423,7 @@ class GameLoop:
     return True
 
   def _reject_client(self, client: ClientConnection) -> None:
-    self._send_error(client, "MAX_PLAYERS", SERVER_FULL_MESSAGE)
+    self._send_error(client, ERROR_MAX_PLAYERS, SERVER_FULL_MESSAGE)
     timer = threading.Timer(
       REJECTED_CLIENT_CLOSE_DELAY_SECONDS,
       self.server.close_connection,
@@ -447,13 +468,14 @@ class GameLoop:
         return
     if generation != self.countdown_generation:
       return
-    self.server.broadcast(COUNTDOWN, {"seconds": 0, "text": "GO"}, self.clients)
+    go_payload = {"seconds": COUNTDOWN_GO_SECONDS, "text": COUNTDOWN_GO_TEXT}
+    self.server.broadcast(COUNTDOWN, go_payload, self.clients)
     self.ready_event.set()
     self.wave_start_event.set()
 
   def _require_participant(self, client: ClientConnection) -> None:
     if self.roster_locked and client.player_id not in self.participants:
-      raise ValueError("GAME_ALREADY_STARTED")
+      raise ValueError(ERROR_GAME_ALREADY_STARTED)
 
   def _finish_game(self, result: str, reason: str) -> None:
     if self.game_over_sent:
@@ -483,17 +505,17 @@ class GameLoop:
   @staticmethod
   def _error_message(code: str) -> str:
     messages = {
-      "INSUFFICIENT_GOLD": "The team does not have enough gold",
-      "POSITION_OCCUPIED": "That tower position is occupied",
-      "INVALID_TOWER_TYPE": "The tower type is invalid",
-      "INVALID_LANE": "The lane is invalid",
-      "INVALID_POSITION": "The tower position is invalid",
-      "TOWER_NOT_FOUND": "The tower does not exist",
-      "GAME_ALREADY_STARTED": "The game has already started",
-      "MAX_TOWER_LEVEL": "That tower is already at maximum level",
-      "ONLY_HOST_CAN_START": "Solo el anfitrión puede iniciar la partida",
-      "INSUFFICIENT_PLAYERS": "Se necesitan al menos dos jugadores conectados",
-      "GAME_NOT_OVER": "La partida todavía está en curso",
+      ERROR_INSUFFICIENT_GOLD: "The team does not have enough gold",
+      ERROR_POSITION_OCCUPIED: "That tower position is occupied",
+      ERROR_INVALID_TOWER_TYPE: "The tower type is invalid",
+      ERROR_INVALID_LANE: "The lane is invalid",
+      ERROR_INVALID_POSITION: "The tower position is invalid",
+      ERROR_TOWER_NOT_FOUND: "The tower does not exist",
+      ERROR_GAME_ALREADY_STARTED: "The game has already started",
+      ERROR_MAX_TOWER_LEVEL: "That tower is already at maximum level",
+      ERROR_ONLY_HOST_CAN_START: "Solo el anfitrión puede iniciar la partida",
+      ERROR_INSUFFICIENT_PLAYERS:
+        "Se necesitan al menos dos jugadores conectados",
     }
     return messages.get(code, "Invalid message payload")
 

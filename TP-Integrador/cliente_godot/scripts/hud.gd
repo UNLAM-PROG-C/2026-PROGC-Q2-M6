@@ -5,6 +5,9 @@ signal tower_selected(tower_type: StringName)
 
 const ERROR_VISIBLE_SECONDS: float = 2.5
 const GO_VISIBLE_SECONDS: float = 0.8
+const COUNTDOWN_GO_SECONDS: int = 0
+const COUNTDOWN_GO_TEXT: String = "GO"
+const COUNTDOWN_TEXT: String = "LA OLEADA EMPIEZA EN %d"
 const NOT_ENOUGH_GOLD_TEXT: String = "No hay suficiente dinero para comprar esa torre."
 const POSITION_TAKEN_TEXT: String = "Ese lugar ya está ocupado."
 const MAX_LEVEL_TEXT: String = "Esta torre ya está en su nivel máximo."
@@ -66,9 +69,10 @@ func _hide_error() -> void:
 
 func _on_countdown(payload: Dictionary) -> void:
 	var seconds := int(payload.get("seconds", 0))
-	countdown_label.text = "GO" if seconds == 0 else "LA OLEADA EMPIEZA EN %d" % seconds
+	var is_go := seconds == COUNTDOWN_GO_SECONDS
+	countdown_label.text = COUNTDOWN_GO_TEXT if is_go else COUNTDOWN_TEXT % seconds
 	countdown_label.visible = true
-	if seconds == 0:
+	if is_go:
 		get_tree().create_timer(GO_VISIBLE_SECONDS).timeout.connect(func() -> void:
 			countdown_label.visible = false
 		)

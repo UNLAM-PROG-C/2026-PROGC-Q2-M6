@@ -19,17 +19,18 @@ const HEALTH_TEXT_COLOR: Color = Color("#111111")
 const STUN_RING_RADIUS: float = 36.0
 const STUN_RING_SEGMENTS: int = 24
 const STUN_RING_WIDTH: float = 3.0
+const MIN_MAX_HEALTH: int = 1
 
 var enemy_type: StringName = &"DISCOUNT_CHILD"
 var health: int = 0
-var max_health: int = 1
+var max_health: int = MIN_MAX_HEALTH
 @onready var sprite: Sprite2D = $Sprite2D
 
 
 func set_state(payload: Dictionary, screen_position: Vector2) -> void:
 	enemy_type = StringName(payload.get("enemy_type", "DISCOUNT_CHILD"))
 	health = int(payload.get("health", 0))
-	max_health = maxi(1, int(payload.get("max_health", health)))
+	max_health = maxi(MIN_MAX_HEALTH, int(payload.get("max_health", health)))
 	position = screen_position
 	sprite.texture = TEXTURES.get(enemy_type)
 	sprite.modulate = STUNNED_COLOR if payload.get("stunned", false) else Color.WHITE

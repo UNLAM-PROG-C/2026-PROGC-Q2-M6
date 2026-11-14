@@ -7,11 +7,7 @@ import sys
 from dataclasses import dataclass
 from typing import Any, Mapping
 
-from servidor.constants import (
-  EXEC_FAILURE_EXIT_CODE,
-  TOTAL_WAVES,
-  WORKER_MODULE,
-)
+from servidor.constants import EXEC_FAILURE_EXIT_CODE, WORKER_MODULE
 from servidor.process_protocol import (
   CHILD_READY,
   SHUTDOWN,
@@ -19,6 +15,7 @@ from servidor.process_protocol import (
   WAVE_PATTERN,
   WAVE_REQUEST,
   read_process_message,
+  validate_wave,
   write_process_message,
 )
 
@@ -132,11 +129,6 @@ def _reap_failed_worker(pid: int | None) -> None:
     pass
 
 
-def _validate_wave(wave: int) -> None:
-  if isinstance(wave, bool) or not 1 <= wave <= TOTAL_WAVES:
-    raise ValueError(f"Wave must be between 1 and {TOTAL_WAVES}: {wave}")
-
-
 def _validate_pattern(payload: dict[str, Any], wave: int) -> None:
   enemies = payload.get("enemies")
   if payload.get("wave") != wave or not isinstance(enemies, list):
@@ -152,7 +144,7 @@ def _validate_pattern(payload: dict[str, Any], wave: int) -> None:
 
 def request_wave(worker: ChildProcess, wave: int) -> dict[str, Any]:
   """Request a deterministic wave pattern from the worker."""
-  _validate_wave(wave)
+  validate_wave(wave)
   write_process_message(worker.parent_write_fd, WAVE_REQUEST, {"wave": wave})
   message = read_process_message(worker.parent_read_fd)
   if message is None or message["type"] != WAVE_PATTERN:

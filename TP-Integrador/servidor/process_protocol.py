@@ -7,8 +7,13 @@ import os
 import struct
 from typing import Any, Mapping
 
-PROCESS_FRAME_HEADER_SIZE = 4
-PROCESS_MAX_FRAME_SIZE = 1_048_576
+from servidor.constants import FIRST_WAVE, TOTAL_WAVES
+from servidor.protocol import (
+  FRAME_HEADER_FORMAT,
+  FRAME_HEADER_SIZE,
+  MAX_FRAME_SIZE,
+  TEXT_ENCODING,
+)
 
 WAVE_REQUEST = "WAVE_REQUEST"
 STATS_UPDATE = "STATS_UPDATE"
@@ -29,8 +34,16 @@ class ProcessProtocolError(ValueError):
   """Raised when an IPC frame violates the process protocol."""
 
 
+def validate_wave(wave: int) -> None:
+  """Reject wave numbers outside the fixed campaign."""
+  if isinstance(wave, bool) or not FIRST_WAVE <= wave <= TOTAL_WAVES:
+    raise ValueError(
+      f"Wave must be between {FIRST_WAVE} and {TOTAL_WAVES}: {wave}"
+    )
+
+
 def _validate_frame_size(size: int) -> None:
-  if size <= 0 or size > PROCESS_MAX_FRAME_SIZE:
+  if size <= 0 or size > MAX_FRAME_SIZE:
     raise ProcessProtocolError(f"Invalid process frame size: {size}")
 
 
@@ -39,9 +52,10 @@ def encode_process_message(
   """Encode one process message with a four-byte length prefix."""
   if message_type not in PROCESS_MESSAGE_TYPES:
     raise ProcessProtocolError(f"Unknown process message type: {message_type}")
-  body = json.dumps({"type": message_type, "payload": payload}).encode("utf-8")
+  message = {"type": message_type, "payload": payload}
+  body = json.dumps(message).encode(TEXT_ENCODING)
   _validate_frame_size(len(body))
-  return struct.pack(">I", len(body)) + body
+  return struct.pack(FRAME_HEADER_FORMAT, len(body)) + body
 
 
 def write_process_message(
@@ -79,7 +93,7 @@ def _read_exact(file_descriptor: int, size: int) -> bytes | None:
 
 def _decode_body(body: bytes) -> dict[str, Any]:
   try:
-    message = json.loads(body.decode("utf-8"))
+    message = json.loads(body.decode(TEXT_ENCODING))
   except (UnicodeDecodeError, json.JSONDecodeError) as error:
     raise ProcessProtocolError(
       "Process frame body is not valid JSON"
@@ -95,10 +109,10 @@ def _decode_body(body: bytes) -> dict[str, Any]:
 
 def read_process_message(file_descriptor: int) -> dict[str, Any] | None:
   """Read one process message, or None after a clean EOF."""
-  header = _read_exact(file_descriptor, PROCESS_FRAME_HEADER_SIZE)
+  header = _read_exact(file_descriptor, FRAME_HEADER_SIZE)
   if header is None:
     return None
-  size = struct.unpack(">I", header)[0]
+  size = struct.unpack(FRAME_HEADER_FORMAT, header)[0]
   _validate_frame_size(size)
   body = _read_exact(file_descriptor, size)
   if body is None:

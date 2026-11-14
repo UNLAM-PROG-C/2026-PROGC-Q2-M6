@@ -1,9 +1,6 @@
 extends Node2D
 class_name TowerView
 
-signal attack_started(target_count: int)
-signal attack_finished
-
 const TEXTURES: Dictionary = {
 	&"MOPPER": preload("res://assets/characters/mopper.svg"),
 	&"STOCK_REPLENISHER": preload("res://assets/characters/stock_replenisher.svg"),
@@ -22,11 +19,6 @@ const SOUND_WAVE_COLOR: Color = Color("#f5d16a", 0.7)
 const SOUND_WAVE_WIDTH: float = 3.0
 const ELLIPSE_SEGMENTS: int = 24
 
-enum State {
-	IDLE,
-	ATTACKING,
-}
-
 @export_category("Attack visual feedback")
 @export var attack_pulse_scale: float = 1.12
 @export_range(0.01, 1.0, 0.01) var attack_pulse_duration: float = 0.12
@@ -34,7 +26,6 @@ enum State {
 
 var tower_type: StringName = &"MOPPER"
 var pulse_time: float = 0.0
-var state: State = State.IDLE
 var _base_scale: Vector2 = Vector2.ONE
 var _base_modulate: Color = Color.WHITE
 var _attack_tween: Tween = null
@@ -59,8 +50,6 @@ func play_attack(target_count: int) -> void:
 		return
 	if _attack_tween != null and _attack_tween.is_valid():
 		_attack_tween.kill()
-	state = State.ATTACKING
-	attack_started.emit(target_count)
 	sprite.modulate = attack_flash_color
 	sprite.scale = _base_scale
 	_start_attack_tween()
@@ -85,10 +74,8 @@ func _start_attack_tween() -> void:
 
 
 func _finish_attack() -> void:
-	state = State.IDLE
 	sprite.scale = _base_scale
 	sprite.modulate = _base_modulate
-	attack_finished.emit()
 
 
 func _process(delta: float) -> void:
