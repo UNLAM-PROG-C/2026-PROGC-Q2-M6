@@ -10,6 +10,7 @@ from servidor.constants import (
   ENEMY_EXIT_POSITION,
   ENEMY_STATS,
   ENEMY_SPEEDS,
+  FIRST_TOWER_LEVEL,
   INITIAL_BASE_HP,
   INITIAL_GOLD,
   LANE_COUNT,
@@ -17,6 +18,17 @@ from servidor.constants import (
   SELL_REFUND_DIVISOR,
   TOWER_STATS,
   TOWER_UPGRADES,
+)
+from servidor.protocol import (
+  ERROR_ENEMY_NOT_FOUND,
+  ERROR_INSUFFICIENT_GOLD,
+  ERROR_INVALID_DAMAGE,
+  ERROR_INVALID_LANE,
+  ERROR_INVALID_POSITION,
+  ERROR_INVALID_TOWER_TYPE,
+  ERROR_MAX_TOWER_LEVEL,
+  ERROR_POSITION_OCCUPIED,
+  ERROR_TOWER_NOT_FOUND,
 )
 
 
@@ -87,10 +99,10 @@ class GameState:
     with self.gold_lock:
       self._validate_tower(tower_type, lane, position)
       if self._position_occupied(lane, position):
-        raise ValueError("POSITION_OCCUPIED")
+        raise ValueError(ERROR_POSITION_OCCUPIED)
       cost = TOWER_STATS[tower_type]["cost"]
       if self.gold < cost:
-        raise ValueError("INSUFFICIENT_GOLD")
+        raise ValueError(ERROR_INSUFFICIENT_GOLD)
       self.gold -= cost
       from servidor.patterns.tower_factory import create_tower
 
@@ -107,7 +119,7 @@ class GameState:
           refund = TOWER_STATS[tower.tower_type]["cost"] // SELL_REFUND_DIVISOR
           self.gold += refund
           return refund
-      raise ValueError("TOWER_NOT_FOUND")
+      raise ValueError(ERROR_TOWER_NOT_FOUND)
 
   def upgrade_tower(self, tower_id: int) -> Tower:
     """Evolve a tower to the next configured type."""
@@ -115,10 +127,10 @@ class GameState:
       tower = self._find_tower(tower_id)
       next_type = TOWER_UPGRADES.get(tower.tower_type)
       if next_type is None:
-        raise ValueError("MAX_TOWER_LEVEL")
+        raise ValueError(ERROR_MAX_TOWER_LEVEL)
       cost = _upgrade_cost(tower.tower_type, next_type)
       if self.gold < cost:
-        raise ValueError("INSUFFICIENT_GOLD")
+        raise ValueError(ERROR_INSUFFICIENT_GOLD)
       self.gold -= cost
       tower.tower_type = next_type
       return tower
@@ -128,17 +140,8 @@ class GameState:
       (item for item in self.towers if item.tower_id == tower_id), None
     )
     if tower is None:
-      raise ValueError("TOWER_NOT_FOUND")
+      raise ValueError(ERROR_TOWER_NOT_FOUND)
     return tower
-
-  def reward_enemy(self, enemy_type: str) -> int:
-    """Credit the configured reward for one defeated enemy."""
-    if not isinstance(enemy_type, str) or enemy_type not in ENEMY_STATS:
-      raise ValueError("INVALID_ENEMY_TYPE")
-    with self.gold_lock:
-      reward = ENEMY_STATS[enemy_type]["reward"]
-      self.gold += reward
-      return reward
 
   def defeat_enemy(self, enemy_id: int) -> int:
     """Remove one enemy and atomically credit its configured reward."""
@@ -149,12 +152,12 @@ class GameState:
           reward = ENEMY_STATS[enemy.enemy_type]["reward"]
           self.gold += reward
           return reward
-      raise ValueError("ENEMY_NOT_FOUND")
+      raise ValueError(ERROR_ENEMY_NOT_FOUND)
 
   def damage_base(self, damage: int) -> int:
     """Apply damage without losing concurrent updates and return HP left."""
     if isinstance(damage, bool) or damage <= 0:
-      raise ValueError("INVALID_DAMAGE")
+      raise ValueError(ERROR_INVALID_DAMAGE)
     with self.base_hp_lock:
       self.base_hp = max(0, self.base_hp - damage)
       return self.base_hp
@@ -237,20 +240,20 @@ class GameState:
     position: tuple[float, float],
   ) -> None:
     if not isinstance(tower_type, str) or tower_type not in TOWER_STATS:
-      raise ValueError("INVALID_TOWER_TYPE")
+      raise ValueError(ERROR_INVALID_TOWER_TYPE)
     if not isinstance(lane, int) or isinstance(lane, bool):
-      raise ValueError("INVALID_LANE")
+      raise ValueError(ERROR_INVALID_LANE)
     if not 0 <= lane < LANE_COUNT:
-      raise ValueError("INVALID_LANE")
+      raise ValueError(ERROR_INVALID_LANE)
     if not _is_valid_position(position):
-      raise ValueError("INVALID_POSITION")
+      raise ValueError(ERROR_INVALID_POSITION)
 
   @staticmethod
   def _tower_payload(tower: Tower) -> dict:
     return {
       "tower_id": tower.tower_id,
       "tower_type": tower.tower_type,
-      "level": list(TOWER_STATS).index(tower.tower_type) + 1,
+      "level": list(TOWER_STATS).index(tower.tower_type) + FIRST_TOWER_LEVEL,
       "lane": tower.lane,
       "pos": list(tower.position),
     }

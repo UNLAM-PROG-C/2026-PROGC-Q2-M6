@@ -19,8 +19,10 @@ from servidor.protocol import (
   SELL_TOWER,
   STATE_UPDATE,
   WELCOME,
+  FRAME_HEADER_FORMAT,
   FRAME_HEADER_SIZE,
   MAX_FRAME_SIZE,
+  TEXT_ENCODING,
   encode_message,
 )
 
@@ -40,7 +42,6 @@ RECV_CHUNK_SIZE = 65536
 MILLISECONDS_PER_SECOND = 1000
 POSITION_X_RANGE = (50, 900)
 POSITION_Y_RANGE = (80, 460)
-FRAME_HEADER_FORMAT = ">I"
 LINGER_ENABLED = 1
 LINGER_TIMEOUT_SECONDS = 0
 
@@ -190,7 +191,7 @@ class BotConnection:
         break
       body = bytes(self.buffer[FRAME_HEADER_SIZE:frame_end])
       del self.buffer[:frame_end]
-      messages.append(json.loads(body.decode("utf-8")))
+      messages.append(json.loads(body.decode(TEXT_ENCODING)))
     return messages
 
 

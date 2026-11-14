@@ -4,7 +4,6 @@ signal connection_requested(host: String, port: int)
 signal connected_to_server
 signal connection_failed(message: String)
 signal disconnected_from_server
-signal message_received(message: Dictionary)
 signal welcome_received(payload: Dictionary)
 signal state_update_received(payload: Dictionary)
 signal wave_start_received(payload: Dictionary)
@@ -177,7 +176,6 @@ func _dispatch_message(body: PackedByteArray) -> void:
 	if not error.is_empty():
 		error_received.emit(error)
 		return
-	message_received.emit(message)
 	_route_message(StringName(message["type"]), message["payload"])
 
 
