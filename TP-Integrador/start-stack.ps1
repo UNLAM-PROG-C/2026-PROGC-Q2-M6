@@ -183,7 +183,6 @@ function Ensure-RadminVpn {
     return $false
   }
 
-  $vpnIp = Get-RadminVpnIp
   Set-Status "vpn" "vpn_ready" "Radmin VPN esta conectado."
   return $true
 }
@@ -246,26 +245,25 @@ function Find-DockerDesktop {
   return $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
 }
 
-function Test-DockerDaemon {
+function Invoke-SilentNativeCommand {
+  param([scriptblock]$Command)
+
   $previousPreference = $ErrorActionPreference
   $ErrorActionPreference = "Continue"
   try {
-    & docker version --format "{{.Server.Version}}" 2>$null 1>$null
+    & $Command 2>$null 1>$null
     return $LASTEXITCODE -eq 0
   } finally {
     $ErrorActionPreference = $previousPreference
   }
 }
 
+function Test-DockerDaemon {
+  return Invoke-SilentNativeCommand { docker version --format "{{.Server.Version}}" }
+}
+
 function Test-DockerCompose {
-  $previousPreference = $ErrorActionPreference
-  $ErrorActionPreference = "Continue"
-  try {
-    & docker compose version 2>$null 1>$null
-    return $LASTEXITCODE -eq 0
-  } finally {
-    $ErrorActionPreference = $previousPreference
-  }
+  return Invoke-SilentNativeCommand { docker compose version }
 }
 
 function Start-Server {
@@ -292,28 +290,12 @@ function Start-Server {
       }
       if ($running -eq "true") {
         Set-Status "server" "running" "El servidor ya esta iniciado. Reiniciando partida limpia..."
-        $previousPreference = $ErrorActionPreference
-        $ErrorActionPreference = "Continue"
-        try {
-          & docker compose restart -t 1 server 2>$null 1>$null
-          $restartExitCode = $LASTEXITCODE
-        } finally {
-          $ErrorActionPreference = $previousPreference
-        }
-        if ($restartExitCode -ne 0) {
+        if (-not (Invoke-SilentNativeCommand { docker compose restart -t 1 server })) {
           throw "Error en el servidor: No se pudo reiniciar el contenedor existente."
         }
       } else {
         Set-Status "server" "running" "El servidor existe, pero no esta listo. Iniciandolo..."
-        $previousPreference = $ErrorActionPreference
-        $ErrorActionPreference = "Continue"
-        try {
-          & docker compose start server 2>$null 1>$null
-          $startExitCode = $LASTEXITCODE
-        } finally {
-          $ErrorActionPreference = $previousPreference
-        }
-        if ($startExitCode -ne 0) {
+        if (-not (Invoke-SilentNativeCommand { docker compose start server })) {
           throw "Error en el servidor: No se pudo iniciar el contenedor existente."
         }
       }

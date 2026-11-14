@@ -13,17 +13,14 @@ func _ready() -> void:
 	NetworkClient.game_over_received.connect(_on_game_over)
 	NetworkClient.match_started_received.connect(_on_match_started_received)
 	NetworkClient.match_reset_received.connect(_on_match_reset_received)
-	game_view.game_over.play_again.connect(_on_play_again)
+	game_view.game_over.play_again.connect(_on_restart_requested)
 	game_view.restart_requested.connect(_on_restart_requested)
 
 
 func _on_state_update(payload: Dictionary) -> void:
 	if not _match_started:
 		return
-	var wave := int(payload.get("current_wave", 0))
-	if wave == 0 and game_view.visible:
-		return
-	if wave == 0:
+	if int(payload.get("current_wave", 0)) == 0:
 		return
 	lobby.visible = false
 	game_view.visible = true
@@ -37,10 +34,6 @@ func _on_match_started_received() -> void:
 
 func _on_game_over(_payload: Dictionary) -> void:
 	game_view.visible = true
-
-
-func _on_play_again() -> void:
-	_on_restart_requested()
 
 
 func _on_restart_requested() -> void:

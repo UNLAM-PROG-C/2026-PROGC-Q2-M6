@@ -64,7 +64,6 @@ const VPN_ALERT_TEXT := ("Por favor conecte el VPN.\n\n"
 const VPN_ALERT_TITLE := "Radmin VPN"
 const INVALID_ADDRESS_TEXT := "El servidor inicio, pero no devolvio una direccion IP:puerto valida."
 const SERVER_CONNECTING_TEXT := "Servidor iniciado. Conectando..."
-const LOBBY_RESET_TEXT := "Partida reiniciada. Podes crear o unirte nuevamente."
 const SERVER_FULL_TEXT := "Servidor lleno (%d/%d jugadores)."
 const GAME_IN_PROGRESS_TEXT := "La partida ya esta en curso."
 
@@ -79,20 +78,14 @@ const GAME_IN_PROGRESS_TEXT := "La partida ya esta en curso."
 var _stack_process_id: int = NO_PROCESS
 var _stack_status_path: String
 var _last_stack_timestamp := ""
-var _ready_after_stack := false
 var _is_host := false
 var _stack_started_at := 0
 var _share_message := ""
 var _connection_code := ""
 var _pending_join_host := ""
 var _pending_join_port := 0
-var _joining_vpn := false
 var _creating_game := false
-var _starting_docker := false
-var _vpn_activation_required := false
-var _game_started := false
 var _players_count := 0
-var _minimum_players := MIN_PLAYERS
 var _using_model_ip := true
 var _disconnect_reason := ""
 
@@ -171,7 +164,6 @@ func _on_connect_pressed() -> void:
 		status_label.text = INVALID_CODE_TEXT
 		return
 	_disconnect_reason = ""
-	_vpn_activation_required = false
 	host_label.text = PASTE_IP_LABEL
 	_start_vpn_for_join(connection[0], connection[1])
 
@@ -199,9 +191,7 @@ func _on_connected() -> void:
 
 func _on_connection_failed(message: String) -> void:
 	var was_joining := not _is_host and not _creating_game
-	_joining_vpn = false
 	_creating_game = false
-	_starting_docker = false
 	_set_buttons_enabled(true)
 	_hide_start_button()
 	if not _disconnect_reason.is_empty():
@@ -233,10 +223,13 @@ func _on_disconnected() -> void:
 func _on_welcome(payload: Dictionary) -> void:
 	_disconnect_reason = ""
 	_is_host = bool(payload.get("is_host", _is_host))
-	_game_started = bool(payload.get("game_started", false))
 	_players_count = int(payload.get("players", _players_count))
-	_minimum_players = MIN_PLAYERS
 	start_button.visible = _is_host
+	_update_welcome_ui()
+	_update_start_button()
+
+
+func _update_welcome_ui() -> void:
 	var players_text := PLAYERS_TEXT % [_players_count, MAX_PLAYERS]
 	if _is_host:
 		host_label.text = SHARE_IP_LABEL
@@ -244,7 +237,6 @@ func _on_welcome(payload: Dictionary) -> void:
 		start_button.text = START_TEXT
 	else:
 		status_label.text = GUEST_WAITING_TEXT + players_text
-	_update_start_button()
 
 
 func _update_start_button() -> void:
@@ -258,7 +250,6 @@ func _update_start_button() -> void:
 func _on_create_party_pressed() -> void:
 	status_label.text = PREPARING_TEXT
 	_disconnect_reason = ""
-	_vpn_activation_required = false
 	_using_model_ip = false
 	host_label.text = SHARE_IP_LABEL
 	_set_buttons_enabled(false)
@@ -270,8 +261,8 @@ func _on_create_party_pressed() -> void:
 func _on_start_match_pressed() -> void:
 	if not _is_host:
 		return
-	if _players_count < _minimum_players:
-		status_label.text = NOT_ENOUGH_PLAYERS_TEXT % _minimum_players
+	if _players_count < MIN_PLAYERS:
+		status_label.text = NOT_ENOUGH_PLAYERS_TEXT % MIN_PLAYERS
 		start_button.disabled = true
 		return
 	NetworkClient.send_message(ProtocolConstants.START_GAME, {})
@@ -279,18 +270,17 @@ func _on_start_match_pressed() -> void:
 	status_label.text = STARTING_MATCH_TEXT
 
 
+func _on_missing_stack_script(prefix: String, script_path: String) -> void:
+	_creating_game = false
+	_set_buttons_enabled(true)
+	status_label.text = prefix + SCRIPT_NOT_FOUND_TEXT % script_path
+
+
 func _start_vpn() -> void:
 	var script_path := _find_stack_script()
 	if not FileAccess.file_exists(script_path):
-		_creating_game = false
-		_joining_vpn = false
-		_set_buttons_enabled(true)
-		status_label.text = VPN_ERROR_PREFIX + SCRIPT_NOT_FOUND_TEXT % script_path
+		_on_missing_stack_script(VPN_ERROR_PREFIX, script_path)
 		return
-	if _creating_game:
-		_ready_after_stack = true
-	else:
-		_joining_vpn = true
 	_set_buttons_enabled(false)
 	status_label.text = VPN_STARTING_TEXT
 	if not _launch_stack_script(script_path, PackedStringArray(["-OnlyVpn"])):
@@ -298,10 +288,8 @@ func _start_vpn() -> void:
 
 
 func _abort_vpn_start() -> void:
-	_ready_after_stack = false
 	_is_host = false
 	_creating_game = false
-	_joining_vpn = false
 	_set_buttons_enabled(true)
 	status_label.text = VPN_PROCESS_FAILED_TEXT
 
@@ -317,25 +305,18 @@ func _start_vpn_for_join(host: String, port: int) -> void:
 func _start_docker() -> void:
 	var script_path := _find_stack_script()
 	if not FileAccess.file_exists(script_path):
-		_creating_game = false
-		_ready_after_stack = false
-		_set_buttons_enabled(true)
-		status_label.text = DOCKER_ERROR_PREFIX + SCRIPT_NOT_FOUND_TEXT % script_path
+		_on_missing_stack_script(DOCKER_ERROR_PREFIX, script_path)
 		return
-	_starting_docker = true
 	_set_buttons_enabled(false)
 	start_button.disabled = true
 	status_label.text = DOCKER_STARTING_TEXT
-	var port_text := str(ProtocolConstants.DEFAULT_PORT)
-	var docker_args := PackedStringArray(["-Port", port_text, "-SkipVpn"])
+	var docker_args := PackedStringArray(["-Port", str(ProtocolConstants.DEFAULT_PORT), "-SkipVpn"])
 	if not _launch_stack_script(script_path, docker_args):
 		_abort_docker_start()
 
 
 func _abort_docker_start() -> void:
-	_starting_docker = false
 	_creating_game = false
-	_ready_after_stack = false
 	_is_host = false
 	_set_buttons_enabled(true)
 	status_label.text = DOCKER_PROCESS_FAILED_TEXT
@@ -369,12 +350,8 @@ func _find_stack_script() -> String:
 
 
 func _clear_stack_status() -> void:
-	if not FileAccess.file_exists(_stack_status_path):
-		return
-	var status_file := FileAccess.open(_stack_status_path, FileAccess.READ)
-	if status_file:
-		status_file.close()
-	DirAccess.remove_absolute(_stack_status_path)
+	if FileAccess.file_exists(_stack_status_path):
+		DirAccess.remove_absolute(_stack_status_path)
 
 
 func _poll_stack_status() -> void:
@@ -420,16 +397,13 @@ func _handle_stack_state(state: String, message: String) -> void:
 
 func _reset_stack_flow() -> void:
 	_stack_process_id = NO_PROCESS
-	_ready_after_stack = false
 	_creating_game = false
-	_starting_docker = false
-	_joining_vpn = false
 	_is_host = false
 
 
 func _on_stack_timeout() -> void:
 	_reset_stack_flow()
-	connect_button.disabled = false
+	_set_buttons_enabled(true)
 	start_button.disabled = false
 	status_label.text = STACK_TIMEOUT_TEXT
 
@@ -439,7 +413,6 @@ func _on_vpn_ready() -> void:
 	if _creating_game:
 		_start_docker()
 		return
-	_joining_vpn = false
 	connect_button.disabled = false
 	status_label.text = VPN_JOIN_CONNECTING_TEXT % [_pending_join_host, _pending_join_port]
 	NetworkClient.request_connection(_pending_join_host, _pending_join_port)
@@ -447,8 +420,6 @@ func _on_vpn_ready() -> void:
 
 func _on_vpn_needs_activation() -> void:
 	_stack_process_id = NO_PROCESS
-	_vpn_activation_required = true
-	_joining_vpn = false
 	_set_buttons_enabled(true)
 	start_button.disabled = true
 	status_label.text = VPN_DISCONNECTED_TEXT
@@ -457,26 +428,24 @@ func _on_vpn_needs_activation() -> void:
 
 func _on_stack_ready(message: String) -> void:
 	_stack_process_id = NO_PROCESS
-	_starting_docker = false
 	_is_host = true
 	_set_buttons_enabled(true)
 	_share_message = message
 	_connection_code = _connection_code_from_status(message)
 	if _connection_code.is_empty():
-		_ready_after_stack = false
 		start_button.disabled = false
 		status_label.text = INVALID_ADDRESS_TEXT
 		return
-	_show_connection_code()
-	var connection := _parse_connection_code(_connection_code)
-	NetworkClient.request_connection(LOCAL_HOST, connection[1])
+	_connect_to_ready_server()
 
 
-func _show_connection_code() -> void:
+func _connect_to_ready_server() -> void:
 	_using_model_ip = false
 	host_label.text = SHARE_IP_LABEL
 	host_input.text = _connection_code
 	status_label.text = SERVER_CONNECTING_TEXT
+	var connection := _parse_connection_code(_connection_code)
+	NetworkClient.request_connection(LOCAL_HOST, connection[1])
 
 
 func _on_stack_error(message: String) -> void:
@@ -558,21 +527,6 @@ func _contains_any(text: String, markers: Array[String]) -> bool:
 		if text.find(marker) >= 0:
 			return true
 	return false
-
-
-func reset_lobby() -> void:
-	_is_host = false
-	_share_message = ""
-	_connection_code = ""
-	_vpn_activation_required = false
-	_game_started = false
-	_players_count = 0
-	_disconnect_reason = ""
-	_reset_host_input()
-	start_button.text = START_TEXT
-	_hide_start_button()
-	_set_buttons_enabled(true)
-	status_label.text = LOBBY_RESET_TEXT
 
 
 func _on_error(payload: Dictionary) -> void:

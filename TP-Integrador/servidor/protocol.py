@@ -8,7 +8,9 @@ import struct
 from typing import Any, Mapping
 
 FRAME_HEADER_SIZE = 4
+FRAME_HEADER_FORMAT = ">I"
 MAX_FRAME_SIZE = 1_048_576
+TEXT_ENCODING = "utf-8"
 
 HELLO = "HELLO"
 READY = "READY"
@@ -47,6 +49,29 @@ SERVER_MESSAGE_TYPES = (
   ATTACK,
 )
 
+ERROR_INVALID_MESSAGE = "INVALID_MESSAGE"
+ERROR_UNKNOWN_MESSAGE = "UNKNOWN_MESSAGE"
+ERROR_MAX_PLAYERS = "MAX_PLAYERS"
+ERROR_INVALID_NAME = "INVALID_NAME"
+ERROR_GAME_ALREADY_STARTED = "GAME_ALREADY_STARTED"
+ERROR_GAME_NOT_STARTED = "GAME_NOT_STARTED"
+ERROR_ONLY_HOST_CAN_START = "ONLY_HOST_CAN_START"
+ERROR_INSUFFICIENT_PLAYERS = "INSUFFICIENT_PLAYERS"
+ERROR_INSUFFICIENT_GOLD = "INSUFFICIENT_GOLD"
+ERROR_POSITION_OCCUPIED = "POSITION_OCCUPIED"
+ERROR_INVALID_TOWER_TYPE = "INVALID_TOWER_TYPE"
+ERROR_INVALID_LANE = "INVALID_LANE"
+ERROR_INVALID_POSITION = "INVALID_POSITION"
+ERROR_TOWER_NOT_FOUND = "TOWER_NOT_FOUND"
+ERROR_MAX_TOWER_LEVEL = "MAX_TOWER_LEVEL"
+ERROR_ENEMY_NOT_FOUND = "ENEMY_NOT_FOUND"
+ERROR_INVALID_DAMAGE = "INVALID_DAMAGE"
+
+RESULT_VICTORY = "VICTORY"
+RESULT_DEFEAT = "DEFEAT"
+REASON_ALL_WAVES_CLEARED = "ALL_WAVES_CLEARED"
+REASON_BASE_DESTROYED = "BASE_DESTROYED"
+
 
 class ProtocolError(ValueError):
   """Raised when a frame does not follow the protocol contract."""
@@ -59,9 +84,10 @@ def _validate_frame_size(size: int) -> None:
 
 def encode_message(message_type: str, payload: Mapping[str, Any]) -> bytes:
   """Encode one protocol message with its four-byte length prefix."""
-  body = json.dumps({"type": message_type, "payload": payload}).encode("utf-8")
+  message = {"type": message_type, "payload": payload}
+  body = json.dumps(message).encode(TEXT_ENCODING)
   _validate_frame_size(len(body))
-  return struct.pack(">I", len(body)) + body
+  return struct.pack(FRAME_HEADER_FORMAT, len(body)) + body
 
 
 def send_message(sock: socket.socket, message_type: str,
@@ -85,7 +111,7 @@ def _recv_exact(sock: socket.socket, size: int) -> bytes | None:
 
 def _decode_body(body: bytes) -> dict[str, Any]:
   try:
-    message = json.loads(body.decode("utf-8"))
+    message = json.loads(body.decode(TEXT_ENCODING))
   except (UnicodeDecodeError, json.JSONDecodeError) as error:
     raise ProtocolError("Frame body is not valid JSON") from error
   if not isinstance(message, dict):
@@ -102,7 +128,7 @@ def recv_message(sock: socket.socket) -> dict[str, Any] | None:
   header = _recv_exact(sock, FRAME_HEADER_SIZE)
   if header is None:
     return None
-  size = struct.unpack(">I", header)[0]
+  size = struct.unpack(FRAME_HEADER_FORMAT, header)[0]
   _validate_frame_size(size)
   body = _recv_exact(sock, size)
   if body is None:

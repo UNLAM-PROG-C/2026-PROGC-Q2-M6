@@ -5,24 +5,18 @@ from __future__ import annotations
 import os
 import queue
 import signal
-import socket
 import threading
 
 from servidor.constants import SERVER_HOST, SERVER_PORT
 from servidor.game_loop import build_game_loop
 from servidor.game_state import GameState
-from servidor.network import GameServer, create_listener
+from servidor.network import GameServer
 from servidor.process_manager import (
   ChildProcess,
   shutdown_worker,
   start_wave_worker,
 )
 from servidor.spawner import EnemySpawner
-
-
-def create_server(host: str, port: int) -> socket.socket:
-  """Keep the Sprint 0 listener factory available to callers."""
-  return create_listener(host, port)
 
 
 def run_server(host: str, port: int) -> None:
@@ -68,6 +62,7 @@ def _build_threads(
     game_loop.wave_start_event,
     game_loop.match_reset_event,
     game_loop.game_over_event,
+    lambda: game_loop.enemies_defeated,
   )
   return [game_loop, spawner]
 

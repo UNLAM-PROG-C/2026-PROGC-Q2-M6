@@ -6,7 +6,7 @@ import os
 import sys
 from typing import Any
 
-from servidor.constants import TOTAL_WAVES, WAVE_PATTERNS
+from servidor.constants import WAVE_PATTERNS, WORKER_MODULE
 from servidor.process_protocol import (
   CHILD_READY,
   SHUTDOWN,
@@ -14,6 +14,7 @@ from servidor.process_protocol import (
   WAVE_PATTERN,
   WAVE_REQUEST,
   read_process_message,
+  validate_wave,
   write_process_message,
 )
 
@@ -23,8 +24,7 @@ USAGE_MESSAGE = "Usage: python -m servidor.wave_worker READ_FD WRITE_FD"
 
 
 def _pattern_for_wave(wave: int) -> list[dict[str, Any]]:
-  if isinstance(wave, bool) or not 1 <= wave <= TOTAL_WAVES:
-    raise ValueError(f"Wave must be between 1 and {TOTAL_WAVES}: {wave}")
+  validate_wave(wave)
   return [
     {"type": enemy_type, "count": count}
     for enemy_type, count in WAVE_PATTERNS[wave]
@@ -53,7 +53,7 @@ def run_worker(read_fd: int, write_fd: int) -> None:
     write_process_message(
       write_fd,
       CHILD_READY,
-      {"pid": os.getpid(), "worker": "servidor.wave_worker"},
+      {"pid": os.getpid(), "worker": WORKER_MODULE},
     )
     while True:
       message = read_process_message(read_fd)

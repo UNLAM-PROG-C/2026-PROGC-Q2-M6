@@ -10,6 +10,7 @@ from typing import Any
 
 from servidor.constants import (
   CLIENT_SOCKET_TIMEOUT_SECONDS,
+  FIRST_PLAYER_ID,
   THREAD_JOIN_TIMEOUT_SECONDS,
 )
 from servidor.protocol import (
@@ -64,15 +65,10 @@ class GameServer:
     self.command_queue: queue.Queue[ClientCommand] = queue.Queue()
     self.stop_event = threading.Event()
     self.clients_lock = threading.RLock()
-    self._next_player_id = 1
+    self._next_player_id = FIRST_PLAYER_ID
     self._connections: list[ClientConnection] = []
     self._client_threads: list[threading.Thread] = []
     self._acceptor_thread: threading.Thread | None = None
-
-  @property
-  def acceptor_thread(self) -> threading.Thread | None:
-    """Return the acceptor thread for lifecycle tests."""
-    return self._acceptor_thread
 
   def start(self) -> None:
     """Start accepting clients."""

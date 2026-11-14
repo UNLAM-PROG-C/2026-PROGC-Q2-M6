@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import queue
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
 from servidor.constants import (
   EVENT_POLL_SECONDS,
+  FIRST_ENEMY_ID,
+  FIRST_WAVE,
   INTER_WAVE_DELAY_SECONDS,
   LANE_COUNT,
   SPAWN_INTERVAL_SECONDS,
@@ -49,6 +52,7 @@ class EnemySpawner:
     wave_start_event: threading.Event | None = None,
     match_reset_event: threading.Event | None = None,
     game_over_event: threading.Event | None = None,
+    defeated_count: Callable[[], int] | None = None,
   ) -> None:
     self.enemy_queue = enemy_queue
     self.worker = worker
@@ -58,7 +62,8 @@ class EnemySpawner:
     self.wave_start_event = wave_start_event
     self.match_reset_event = match_reset_event
     self.game_over_event = game_over_event
-    self._next_enemy_id = 1
+    self.defeated_count = defeated_count or _no_defeats
+    self._next_enemy_id = FIRST_ENEMY_ID
     self.thread = threading.Thread(
       target=self.run,
       name="spawner_thread",
@@ -119,7 +124,7 @@ class EnemySpawner:
     return _PROCEED
 
   def _run_waves(self) -> str:
-    for wave in range(1, TOTAL_WAVES + 1):
+    for wave in range(FIRST_WAVE, TOTAL_WAVES + 1):
       if self._match_interrupted():
         if self.match_reset_event is not None:
           self.match_reset_event.clear()
@@ -133,7 +138,10 @@ class EnemySpawner:
     self._produce_wave(wave)
     if not self._wait_for_wave_completion():
       return _STOP
-    send_stats_update(self.worker, {"wave": wave, "enemies_defeated": 0})
+    send_stats_update(self.worker, {
+      "wave": wave,
+      "enemies_defeated": self.defeated_count(),
+    })
     if wave == TOTAL_WAVES or self._game_over():
       return _PROCEED
     if self.stop_event.wait(INTER_WAVE_DELAY_SECONDS) and not self._game_over():
@@ -188,5 +196,9 @@ class EnemySpawner:
 
   @staticmethod
   def _create_enemy(enemy_id: int, enemy_type: str) -> Enemy:
-    lane = (enemy_id - 1) % LANE_COUNT
+    lane = (enemy_id - FIRST_ENEMY_ID) % LANE_COUNT
     return create_enemy(enemy_id, enemy_type, lane)
+
+
+def _no_defeats() -> int:
+  return 0
