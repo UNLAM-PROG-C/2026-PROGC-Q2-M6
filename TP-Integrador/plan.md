@@ -287,22 +287,7 @@ Esta franja es margen para imprevistos y para entregar el 02/12 si hace falta. S
 
 ---
 
-## 6. Estrategia de branching
-
-| Rama | Propósito | Regla |
-|---|---|---|
-| `main` | Código estable para entregar y mostrar | Solo recibe merges desde `develop` por PR revisado por otro integrante |
-| `develop` | Integración diaria | Rama de trabajo del equipo |
-| `feature/<nombre>` | Una funcionalidad (ej. `feature/gold-lock`, `feature/godot-hud`) | Sale de `develop`, vuelve por PR, se borra al mergear |
-| `release/ap1-parteN` | Congela cada entrega incremental | Tag + rama al cerrar cada sprint de AP1 |
-
-**Commits:** en inglés, modo imperativo, cortos. Ej.: `add gold lock to prevent double spend`, `add godot hud scene`.
-
-**Pull Requests:** mínimo 1 revisión de otro integrante; el autor no mergea su propio PR. Servidor y cliente conviven en el mismo repo.
-
----
-
-## 7. Estrategia de testing
+## 6. Estrategia de testing
 
 | Qué | Cómo |
 |---|---|
@@ -315,7 +300,7 @@ Esta franja es margen para imprevistos y para entregar el 02/12 si hace falta. S
 
 ---
 
-## 8. Riesgos y mitigaciones
+## 7. Riesgos y mitigaciones
 
 | Riesgo | Mitigación |
 |---|---|
@@ -323,8 +308,5 @@ Esta franja es margen para imprevistos y para entregar el 02/12 si hace falta. S
 | Carrera no detectada en el oro | Test con bots en Sprint 2 (antes del lock) y Sprint 3 (después) |
 | Deadlock por orden de locks | Orden global documentado + revisión cruzada en PR |
 | `fork()` no disponible en Windows | Decidir en Sprint 0: WSL/Linux o `multiprocessing.Process` |
-| Un integrante no puede explicar su parte | Rotar módulos entre sprints; nadie es "dueño" permanente de un archivo ni de un lenguaje |
-| Desincronización visual por latencia | `STATE_UPDATE` periódico completo, no solo eventos |
-| Feature creep | Respetar la lista de "No incluye" de la sección 1; todo agregado se discute en grupo |
-| Ir justos de tiempo | Apuntar al 25/11 y usar 02/12 como colchón, no como plan base |
+
 
