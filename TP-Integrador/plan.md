@@ -177,9 +177,6 @@ Oro inicial 200 · Vida de base inicial 100 · Victoria: superar la oleada 10 ·
 
 ## 5. Sprints
 
-**Fecha de hoy:** 12/10/2026. **Fechas posibles de entrega/coloquio:** 18/11, 25/11 y 02/12.
-**Recomendación:** apuntar al **25/11** como fecha objetivo. El 18/11 es posible pero deja casi sin margen, y el 02/12 queda como colchón. Los sprints son semanales.
-
 ### Sprint 0 — Setup local con Docker (12/10 – 18/10)
 
 **Objetivo:** que todo el equipo pueda desarrollar y ejecutar el servidor, las pruebas y las herramientas dentro de Docker, con una versión reproducible de Godot para validación headless.
@@ -331,15 +328,3 @@ Esta franja es margen para imprevistos y para entregar el 02/12 si hace falta. S
 | Feature creep | Respetar la lista de "No incluye" de la sección 1; todo agregado se discute en grupo |
 | Ir justos de tiempo | Apuntar al 25/11 y usar 02/12 como colchón, no como plan base |
 
----
-
-## 9. Checklist de entrega final
-
-- [ ] Repo en GitHub con código fuente, proyecto Godot y `plan.md`
-- [ ] `README.md` completo (finalidad, lenguajes, frameworks, requisitos)
-- [ ] Manual de usuario (capturas o link a video)
-- [ ] Conclusiones con dificultades reales
-- [ ] PDF `TP_Integrador_NumerodelGrupo.pdf` con el mismo contenido que README y manual
-- [ ] Entrega en Miel
-- [ ] Estándar de código verificado en Python y GDScript
-- [ ] Tags de las 3 entregas de AP1 en el repo
