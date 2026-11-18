@@ -42,7 +42,7 @@ func _ready() -> void:
 func update_state(payload: Dictionary) -> void:
 	var gold: int = int(payload.get("gold", 0))
 	var base_hp: int = int(payload.get("base_hp", 0))
-	var current_wave: int = int(payload.get("current_wave", 0))
+	var current_wave: int = int(payload.get("current_wave", GameConstants.NO_CURRENT_WAVE))
 	gold_label.text = "ORO: %d" % gold
 	base_label.text = "BASE: %d/%d" % [base_hp, GameConstants.INITIAL_BASE_HP]
 	base_bar.value = float(payload.get("base_hp", 0))
@@ -53,7 +53,7 @@ func reset_state() -> void:
 	update_state({
 		"gold": GameConstants.INITIAL_GOLD,
 		"base_hp": GameConstants.INITIAL_BASE_HP,
-		"current_wave": 0,
+		"current_wave": GameConstants.NO_CURRENT_WAVE,
 	})
 
 

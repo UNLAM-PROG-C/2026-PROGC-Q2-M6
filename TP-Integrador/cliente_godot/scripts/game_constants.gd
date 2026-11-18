@@ -10,6 +10,7 @@ const LANE_Y: Array[float] = [250.0, 400.0, 550.0]
 const INITIAL_GOLD: int = 200
 const INITIAL_BASE_HP: int = 100
 const TOTAL_WAVES: int = 10
+const NO_CURRENT_WAVE: int = 0
 
 
 static func world_to_screen_x(world_x: float) -> float:

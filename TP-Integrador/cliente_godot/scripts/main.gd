@@ -20,7 +20,7 @@ func _ready() -> void:
 func _on_state_update(payload: Dictionary) -> void:
 	if not _match_started:
 		return
-	if int(payload.get("current_wave", 0)) == 0:
+	if int(payload.get("current_wave", GameConstants.NO_CURRENT_WAVE)) == GameConstants.NO_CURRENT_WAVE:
 		return
 	lobby.visible = false
 	game_view.visible = true
