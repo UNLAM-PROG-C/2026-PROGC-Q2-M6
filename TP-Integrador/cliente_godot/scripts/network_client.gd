@@ -17,9 +17,13 @@ signal attack_received(payload: Dictionary)
 
 const ProtocolConstants = preload("res://scripts/protocol_constants.gd")
 const FRAME_HEADER_SIZE: int = 4
+const FRAME_HEADER_LAST_INDEX: int = FRAME_HEADER_SIZE - 1
 const MAX_FRAME_SIZE: int = 1048576
 const BITS_PER_BYTE: int = 8
 const BYTE_MASK: int = 0xFF
+const NO_CONNECTION_START_TIME_MSEC: int = 0
+const NO_AVAILABLE_BYTES: int = 0
+const EMPTY_FRAME_VALUE: int = 0
 const CONNECT_TIMEOUT_MSEC: int = 15000
 const MIN_PORT: int = 1
 const MAX_PORT: int = 65535
@@ -36,7 +40,7 @@ var _tcp: StreamPeerTCP
 var _receive_buffer := PackedByteArray()
 var _was_connected := false
 var _is_connecting := false
-var _connection_started_at := 0
+var _connection_started_at := NO_CONNECTION_START_TIME_MSEC
 var _payload_signals: Dictionary = {}
 
 
@@ -91,7 +95,10 @@ func send_message(message_type: StringName, payload: Dictionary) -> void:
 		return
 	var body := JSON.stringify({"type": String(message_type), "payload": payload})
 	var body_bytes := body.to_utf8_buffer()
-	if body_bytes.size() <= 0 or body_bytes.size() > MAX_FRAME_SIZE:
+	if (
+		body_bytes.size() < ProtocolConstants.MIN_FRAME_SIZE
+		or body_bytes.size() > MAX_FRAME_SIZE
+	):
 		connection_failed.emit("The message size is invalid.")
 		return
 	_tcp.put_data(_encode_frame(body_bytes))
@@ -117,7 +124,10 @@ func _reset_session(host: String, port: int) -> void:
 
 func _check_connect_timeout() -> void:
 	var elapsed := Time.get_ticks_msec() - _connection_started_at
-	if _connection_started_at > 0 and elapsed > CONNECT_TIMEOUT_MSEC:
+	if (
+		_connection_started_at > NO_CONNECTION_START_TIME_MSEC
+		and elapsed > CONNECT_TIMEOUT_MSEC
+	):
 		_fail_connection()
 
 
@@ -137,7 +147,7 @@ func _fail_connection() -> void:
 func _handle_connected() -> void:
 	if _was_connected:
 		return
-	_connection_started_at = 0
+	_connection_started_at = NO_CONNECTION_START_TIME_MSEC
 	_was_connected = true
 	connected_to_server.emit()
 	send_message(ProtocolConstants.HELLO, {"name": PLAYER_NAME})
@@ -145,7 +155,7 @@ func _handle_connected() -> void:
 
 func _read_available_data() -> void:
 	var available := _tcp.get_available_bytes()
-	if available <= 0:
+	if available <= NO_AVAILABLE_BYTES:
 		return
 	var result := _tcp.get_partial_data(available)
 	if result[0] != OK:
@@ -158,7 +168,10 @@ func _read_available_data() -> void:
 func _parse_frames() -> void:
 	while _receive_buffer.size() >= FRAME_HEADER_SIZE:
 		var body_size := _decode_u32(_receive_buffer)
-		if body_size <= 0 or body_size > MAX_FRAME_SIZE:
+		if (
+			body_size < ProtocolConstants.MIN_FRAME_SIZE
+			or body_size > MAX_FRAME_SIZE
+		):
 			connection_failed.emit("The server sent an invalid frame.")
 			_receive_buffer.clear()
 			return
@@ -204,14 +217,14 @@ func _route_message(message_type: StringName, payload: Dictionary) -> void:
 func _encode_frame(body: PackedByteArray) -> PackedByteArray:
 	var frame := PackedByteArray()
 	for index in FRAME_HEADER_SIZE:
-		var shift := (FRAME_HEADER_SIZE - 1 - index) * BITS_PER_BYTE
+		var shift := (FRAME_HEADER_LAST_INDEX - index) * BITS_PER_BYTE
 		frame.append((body.size() >> shift) & BYTE_MASK)
 	frame.append_array(body)
 	return frame
 
 
 func _decode_u32(bytes: PackedByteArray) -> int:
-	var value := 0
+	var value := EMPTY_FRAME_VALUE
 	for index in FRAME_HEADER_SIZE:
 		value = (value << BITS_PER_BYTE) | bytes[index]
 	return value
@@ -222,5 +235,5 @@ func _close_connection() -> void:
 		_tcp.disconnect_from_host()
 	_tcp = null
 	_was_connected = false
-	_connection_started_at = 0
+	_connection_started_at = NO_CONNECTION_START_TIME_MSEC
 	_is_connecting = false

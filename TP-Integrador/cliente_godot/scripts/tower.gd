@@ -18,6 +18,7 @@ const SOUND_WAVE_SEGMENTS: int = 18
 const SOUND_WAVE_COLOR: Color = Color("#f5d16a", 0.7)
 const SOUND_WAVE_WIDTH: float = 3.0
 const ELLIPSE_SEGMENTS: int = 24
+const NO_TARGETS: int = 0
 
 @export_category("Attack visual feedback")
 @export var attack_pulse_scale: float = 1.12
@@ -46,7 +47,7 @@ func set_state(payload: Dictionary, screen_position: Vector2) -> void:
 
 
 func play_attack(target_count: int) -> void:
-	if target_count <= 0:
+	if target_count <= NO_TARGETS:
 		return
 	if _attack_tween != null and _attack_tween.is_valid():
 		_attack_tween.kill()

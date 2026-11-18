@@ -12,8 +12,11 @@ from servidor.protocol import (
   FRAME_HEADER_FORMAT,
   FRAME_HEADER_SIZE,
   MAX_FRAME_SIZE,
+  MIN_FRAME_SIZE,
   TEXT_ENCODING,
 )
+
+NO_BYTES_WRITTEN = 0
 
 WAVE_REQUEST = "WAVE_REQUEST"
 STATS_UPDATE = "STATS_UPDATE"
@@ -43,7 +46,7 @@ def validate_wave(wave: int) -> None:
 
 
 def _validate_frame_size(size: int) -> None:
-  if size <= 0 or size > MAX_FRAME_SIZE:
+  if size < MIN_FRAME_SIZE or size > MAX_FRAME_SIZE:
     raise ProcessProtocolError(f"Invalid process frame size: {size}")
 
 
@@ -71,7 +74,7 @@ def write_process_message(
       written = os.write(file_descriptor, frame[offset:])
     except InterruptedError:
       continue
-    if written == 0:
+    if written == NO_BYTES_WRITTEN:
       raise BrokenPipeError("Process pipe closed while writing")
     offset += written
 

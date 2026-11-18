@@ -40,12 +40,12 @@ func _ready() -> void:
 
 
 func update_state(payload: Dictionary) -> void:
-	var gold: int = int(payload.get("gold", 0))
-	var base_hp: int = int(payload.get("base_hp", 0))
+	var gold: int = int(payload.get("gold", GameConstants.NO_GOLD))
+	var base_hp: int = int(payload.get("base_hp", GameConstants.NO_BASE_HP))
 	var current_wave: int = int(payload.get("current_wave", GameConstants.NO_CURRENT_WAVE))
 	gold_label.text = "ORO: %d" % gold
 	base_label.text = "BASE: %d/%d" % [base_hp, GameConstants.INITIAL_BASE_HP]
-	base_bar.value = float(payload.get("base_hp", 0))
+	base_bar.value = float(payload.get("base_hp", GameConstants.NO_BASE_HP))
 	wave_label.text = "OLEADA: %d/%d" % [current_wave, GameConstants.TOTAL_WAVES]
 
 
@@ -68,7 +68,7 @@ func _hide_error() -> void:
 
 
 func _on_countdown(payload: Dictionary) -> void:
-	var seconds := int(payload.get("seconds", 0))
+	var seconds := int(payload.get("seconds", COUNTDOWN_GO_SECONDS))
 	var is_go := seconds == COUNTDOWN_GO_SECONDS
 	countdown_label.text = COUNTDOWN_GO_TEXT if is_go else COUNTDOWN_TEXT % seconds
 	countdown_label.visible = true

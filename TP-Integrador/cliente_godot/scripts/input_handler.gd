@@ -64,10 +64,14 @@ func _tower_at(screen_position: Vector2) -> int:
 
 
 func _tower_screen_position(tower: Dictionary) -> Vector2:
-	var raw_pos: Array = tower.get("pos", [0.0, 0.0])
+	var raw_pos: Array = tower.get("pos", GameConstants.DEFAULT_WORLD_POSITION)
 	return Vector2(
-		GameConstants.world_to_screen_x(float(raw_pos[0])),
-		GameConstants.lane_to_screen_y(int(tower.get("lane", 0))),
+		GameConstants.world_to_screen_x(
+			float(raw_pos[GameConstants.WORLD_POSITION_X_INDEX])
+		),
+		GameConstants.lane_to_screen_y(
+			int(tower.get("lane", GameConstants.FIRST_LANE))
+		),
 	)
 
 
@@ -81,7 +85,7 @@ func _inside_board(position: Vector2) -> bool:
 
 
 func _lane_at(screen_y: float) -> int:
-	var lane := 0
+	var lane := GameConstants.FIRST_LANE
 	var distance := INF
 	for index in GameConstants.LANE_Y.size():
 		var current_distance: float = abs(screen_y - GameConstants.LANE_Y[index])
@@ -93,4 +97,8 @@ func _lane_at(screen_y: float) -> int:
 
 func _screen_to_world_x(screen_x: float) -> float:
 	var normalized := (screen_x - GameConstants.BOARD_LEFT) / GameConstants.BOARD_WIDTH
-	return clampf(normalized * GameConstants.WORLD_END, 0.0, GameConstants.WORLD_END)
+	return clampf(
+		normalized * GameConstants.WORLD_END,
+		GameConstants.WORLD_START,
+		GameConstants.WORLD_END,
+	)

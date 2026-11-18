@@ -6,6 +6,7 @@ const TOWER_SCENE: PackedScene = preload("res://scenes/Tower.tscn")
 const ENEMY_SCENE: PackedScene = preload("res://scenes/Enemy.tscn")
 const NO_ENTITY_ID: int = -1
 const ATTACK_EFFECT_SECONDS: float = 0.16
+const EXPIRED_EFFECT_SECONDS: float = 0.0
 const DEFAULT_ERROR_TEXT: String = "Error de juego"
 
 const BACKGROUND_COLOR: Color = Color("#27313b")
@@ -14,6 +15,12 @@ const ATTACK_LINE_WIDTH: float = 4.0
 const ATTACK_HIT_COLOR: Color = Color("#fff4a8")
 const ATTACK_HIT_RADIUS: float = 7.0
 
+const LEFT_EDGE: float = 0.0
+const FIRST_WALL_ROW: int = 0
+const EVEN_TILE_PARITY: int = 0
+const ODD_TILE_PARITY: int = 1
+const CHECKERBOARD_PATTERN_SIZE: int = 2
+const OPPOSITE_SIDES: int = 2
 const WALL_TOP: float = 90.0
 const BASEBOARD_TOP: float = 178.0
 const FLOOR_TOP: float = 198.0
@@ -77,7 +84,7 @@ func _process(delta: float) -> void:
 	for effect in attack_effects:
 		effect["remaining"] = float(effect["remaining"]) - delta
 	attack_effects = attack_effects.filter(func(effect: Dictionary) -> bool:
-		return float(effect["remaining"]) > 0.0
+		return float(effect["remaining"]) > EXPIRED_EFFECT_SECONDS
 	)
 	queue_redraw()
 
@@ -112,7 +119,7 @@ func _draw_background() -> void:
 func _draw_wall() -> void:
 	var cols: int = int(ceil(size.x / WALL_TILE))
 	var y: float = WALL_TOP
-	var row: int = 0
+	var row: int = FIRST_WALL_ROW
 	while y < BASEBOARD_TOP:
 		var height: float = minf(WALL_TILE, BASEBOARD_TOP - y)
 		for col in cols:
@@ -135,22 +142,22 @@ func _draw_wall_grout(cols: int) -> void:
 		draw_line(Vector2(x, WALL_TOP), Vector2(x, BASEBOARD_TOP), WALL_GROUT_COLOR, GROUT_WIDTH)
 	var y: float = WALL_TOP
 	while y < BASEBOARD_TOP:
-		draw_line(Vector2(0, y), Vector2(size.x, y), WALL_GROUT_COLOR, GROUT_WIDTH)
+		draw_line(Vector2(LEFT_EDGE, y), Vector2(size.x, y), WALL_GROUT_COLOR, GROUT_WIDTH)
 		y += WALL_TILE
 
 
 func _draw_baseboard() -> void:
 	var height: float = FLOOR_TOP - BASEBOARD_TOP
-	draw_rect(Rect2(0, BASEBOARD_TOP, size.x, height), BASEBOARD_COLOR)
-	draw_rect(Rect2(0, BASEBOARD_TOP, size.x, BASEBOARD_TOP_EDGE), BASEBOARD_TOP_COLOR)
+	draw_rect(Rect2(LEFT_EDGE, BASEBOARD_TOP, size.x, height), BASEBOARD_COLOR)
+	draw_rect(Rect2(LEFT_EDGE, BASEBOARD_TOP, size.x, BASEBOARD_TOP_EDGE), BASEBOARD_TOP_COLOR)
 	var bottom_y: float = FLOOR_TOP - BASEBOARD_BOTTOM_EDGE
-	draw_rect(Rect2(0, bottom_y, size.x, BASEBOARD_BOTTOM_EDGE), BASEBOARD_BOTTOM_COLOR)
+	draw_rect(Rect2(LEFT_EDGE, bottom_y, size.x, BASEBOARD_BOTTOM_EDGE), BASEBOARD_BOTTOM_COLOR)
 	# Soft baseboard shadow over the floor
-	draw_rect(Rect2(0, FLOOR_TOP, size.x, BASEBOARD_SHADOW_HEIGHT), BASEBOARD_SHADOW_COLOR)
+	draw_rect(Rect2(LEFT_EDGE, FLOOR_TOP, size.x, BASEBOARD_SHADOW_HEIGHT), BASEBOARD_SHADOW_COLOR)
 
 
 func _draw_floor() -> void:
-	draw_rect(Rect2(0, FLOOR_TOP, size.x, size.y - FLOOR_TOP), FLOOR_COLOR)
+	draw_rect(Rect2(LEFT_EDGE, FLOOR_TOP, size.x, size.y - FLOOR_TOP), FLOOR_COLOR)
 	var cols: int = int(ceil(size.x / FLOOR_TILE))
 	var rows: int = int(ceil((size.y - FLOOR_TOP) / FLOOR_TILE))
 	for row in rows:
@@ -161,7 +168,7 @@ func _draw_floor() -> void:
 func _draw_floor_tile(row: int, col: int) -> void:
 	var origin := Vector2(col * FLOOR_TILE, FLOOR_TOP + row * FLOOR_TILE)
 	var tile := Rect2(origin, Vector2(FLOOR_TILE, FLOOR_TILE))
-	if (row + col) % 2 == 1:
+	if (row + col) % CHECKERBOARD_PATTERN_SIZE == ODD_TILE_PARITY:
 		draw_rect(tile, FLOOR_ALT_COLOR)
 	# Bevel: light on top/left, shadow on bottom/right
 	var top_right := Vector2(tile.end.x, tile.position.y)
@@ -176,7 +183,12 @@ func _draw_lanes() -> void:
 	var lane_end: float = GameConstants.BOARD_LEFT + GameConstants.BOARD_WIDTH
 	for lane_y in GameConstants.LANE_Y:
 		# Faint stripe that marks the lane without cutting the floor
-		var stripe := Rect2(0, lane_y - LANE_HALF_HEIGHT, lane_end, LANE_HALF_HEIGHT * 2.0)
+		var stripe := Rect2(
+			LEFT_EDGE,
+			lane_y - LANE_HALF_HEIGHT,
+			lane_end,
+			LANE_HALF_HEIGHT * OPPOSITE_SIDES,
+		)
 		draw_rect(stripe, LANE_STRIPE_COLOR)
 		_draw_lane_dashes(lane_y + LANE_DASH_OFFSET_Y, lane_end)
 
@@ -229,10 +241,12 @@ func _remove_stale(views: Dictionary, active_ids: Dictionary) -> void:
 
 
 func _entity_position(state: Dictionary) -> Vector2:
-	var raw_pos: Array = state.get("pos", [0.0, 0.0])
+	var raw_pos: Array = state.get("pos", GameConstants.DEFAULT_WORLD_POSITION)
 	return Vector2(
-		GameConstants.world_to_screen_x(float(raw_pos[0])),
-		GameConstants.lane_to_screen_y(int(state.get("lane", 0))),
+		GameConstants.world_to_screen_x(
+			float(raw_pos[GameConstants.WORLD_POSITION_X_INDEX])
+		),
+		GameConstants.lane_to_screen_y(int(state.get("lane", GameConstants.FIRST_LANE))),
 	)
 
 

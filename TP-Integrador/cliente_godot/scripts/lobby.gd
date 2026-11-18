@@ -9,6 +9,10 @@ const MIN_PLAYERS := 2
 const MIN_PORT := 1
 const MAX_PORT := 65535
 const NO_PROCESS := -1
+const NO_PLAYERS := 0
+const STRING_NOT_FOUND := -1
+const FIRST_CHARACTER_INDEX := 0
+const NEXT_CHARACTER_OFFSET := 1
 const STACK_TIMEOUT_MSEC := 180000
 const STACK_SCRIPT_NAME := "start-stack.ps1"
 const POWERSHELL := "powershell.exe"
@@ -85,7 +89,7 @@ var _connection_code := ""
 var _pending_join_host := ""
 var _pending_join_port := 0
 var _creating_game := false
-var _players_count := 0
+var _players_count := NO_PLAYERS
 var _using_model_ip := true
 var _disconnect_reason := ""
 
@@ -213,7 +217,7 @@ func _on_disconnected() -> void:
 	_hide_start_button()
 	_set_buttons_enabled(true)
 	_is_host = false
-	_players_count = 0
+	_players_count = NO_PLAYERS
 	if not _disconnect_reason.is_empty():
 		status_label.text = _disconnect_reason
 	else:
@@ -458,10 +462,13 @@ func _on_stack_error(message: String) -> void:
 func _parse_connection_code(value: String) -> Array:
 	var code := value.strip_edges()
 	var separator := code.rfind(":")
-	if separator <= 0 or separator >= code.length() - 1:
+	if (
+		separator == STRING_NOT_FOUND
+		or separator + NEXT_CHARACTER_OFFSET >= code.length()
+	):
 		return []
-	var host := code.substr(0, separator).strip_edges()
-	var port_text := code.substr(separator + 1).strip_edges()
+	var host := code.substr(FIRST_CHARACTER_INDEX, separator).strip_edges()
+	var port_text := code.substr(separator + NEXT_CHARACTER_OFFSET).strip_edges()
 	if host.is_empty() or not port_text.is_valid_int():
 		return []
 	var port := int(port_text)
@@ -472,14 +479,14 @@ func _parse_connection_code(value: String) -> Array:
 
 func _connection_code_from_status(message: String) -> String:
 	var marker_position := message.find(STATUS_CODE_MARKER)
-	if marker_position < 0:
+	if marker_position == STRING_NOT_FOUND:
 		return ""
 	var code := message.substr(marker_position + STATUS_CODE_MARKER.length()).strip_edges()
 	var separator := code.find(STATUS_PORT_MARKER)
-	if separator < 0:
+	if separator == STRING_NOT_FOUND:
 		return ""
 	return "%s:%s" % [
-		code.substr(0, separator).strip_edges(),
+		code.substr(FIRST_CHARACTER_INDEX, separator).strip_edges(),
 		code.substr(separator + STATUS_PORT_MARKER.length()).strip_edges(),
 	]
 
@@ -513,7 +520,7 @@ func _apply_network_event(line: String, active_networks: Array[String]) -> void:
 
 func _network_name(line: String) -> String:
 	var net_idx := line.find(NETWORK_MARKER)
-	if net_idx < 0:
+	if net_idx == STRING_NOT_FOUND:
 		return ""
 	var start := net_idx + NETWORK_MARKER.length()
 	var end := line.find("'", start)
@@ -524,7 +531,7 @@ func _network_name(line: String) -> String:
 
 func _contains_any(text: String, markers: Array[String]) -> bool:
 	for marker in markers:
-		if text.find(marker) >= 0:
+		if text.find(marker) != STRING_NOT_FOUND:
 			return true
 	return false
 

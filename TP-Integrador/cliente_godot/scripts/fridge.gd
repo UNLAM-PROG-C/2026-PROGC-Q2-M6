@@ -12,6 +12,10 @@ const GLOW_DANGER: Color = Color("#ff4d4d")
 const CRACK_COLOR: Color = Color("#5a2a2a")
 const CRACK_WIDTH: float = 3.0
 
+const MIN_HP_RATIO: float = 0.0
+const MAX_HP_RATIO: float = 1.0
+const FULL_GLOW_STRENGTH: float = 1.0
+const OPPOSITE_SIDES: int = 2
 const DANGER_RATIO: float = 0.25
 const LIGHT_DAMAGE_RATIO: float = 0.75
 const HEAVY_DAMAGE_RATIO: float = 0.45
@@ -130,7 +134,7 @@ const HEAVY_CRACK_TOP: Array[Vector2] = [
 ]
 const HEAVY_CRACK_END: Vector2 = Vector2(20, -20)
 
-var hp_ratio: float = 1.0
+var hp_ratio: float = MAX_HP_RATIO
 
 
 func _ready() -> void:
@@ -139,7 +143,11 @@ func _ready() -> void:
 
 
 func set_hp(hp: float) -> void:
-	hp_ratio = clampf(hp / float(GameConstants.INITIAL_BASE_HP), 0.0, 1.0)
+	hp_ratio = clampf(
+		hp / float(GameConstants.INITIAL_BASE_HP),
+		MIN_HP_RATIO,
+		MAX_HP_RATIO,
+	)
 	set_process(hp_ratio < DANGER_RATIO)
 	queue_redraw()
 
@@ -152,7 +160,7 @@ func _draw() -> void:
 	var body: Rect2 = BODY_RECT
 	_draw_glow(body)
 	_draw_shell(body)
-	var inner_width: float = body.size.x - PANEL_MARGIN * 2.0
+	var inner_width: float = body.size.x - PANEL_MARGIN * OPPOSITE_SIDES
 	var left: float = body.position.x + PANEL_MARGIN
 	_draw_header(Rect2(left, body.position.y + PANEL_MARGIN, inner_width, HEADER_HEIGHT))
 	var glass := Rect2(left, body.position.y + GLASS_TOP, inner_width, GLASS_HEIGHT)
@@ -170,7 +178,7 @@ func _draw_shell(body: Rect2) -> void:
 
 func _draw_glow(body: Rect2) -> void:
 	var glow: Color = GLOW_OK
-	var strength: float = 1.0
+	var strength: float = FULL_GLOW_STRENGTH
 	if hp_ratio < DANGER_RATIO:
 		var seconds: float = Time.get_ticks_msec() / MSEC_PER_SECOND
 		glow = GLOW_DANGER
@@ -201,7 +209,10 @@ func _draw_stock_tag(font: Font, tag_position: Vector2) -> void:
 
 
 func _draw_glass(glass: Rect2) -> void:
-	var tint: Color = GLASS_TINT_OK.lerp(GLASS_TINT_DAMAGED, 1.0 - hp_ratio)
+	var tint: Color = GLASS_TINT_OK.lerp(
+		GLASS_TINT_DAMAGED,
+		MAX_HP_RATIO - hp_ratio,
+	)
 	draw_rect(glass, GLASS_COLOR)
 	var cell_size := Vector2(
 		(glass.size.x - CELL_GAP * (SHELF_COLS + 1)) / SHELF_COLS,
@@ -280,7 +291,7 @@ func _draw_ice(pos: Vector2) -> void:
 func _draw_base_vent(panel: Rect2) -> void:
 	draw_rect(panel, PANEL_COLOR)
 	draw_rect(panel, PANEL_EDGE_COLOR, false, THICK_LINE)
-	var vent_width: float = panel.size.x - VENT_INSET.x * 2.0
+	var vent_width: float = panel.size.x - VENT_INSET.x * OPPOSITE_SIDES
 	var vent := Rect2(panel.position + VENT_INSET, Vector2(vent_width, VENT_HEIGHT))
 	draw_rect(vent, VENT_COLOR)
 	var x: float = vent.position.x + VENT_SLOT_START

@@ -2,6 +2,7 @@ extends Node
 class_name ProtocolConstants
 
 const DEFAULT_PORT: int = 5000
+const MIN_FRAME_SIZE: int = 1
 
 const HELLO: StringName = &"HELLO"
 const READY: StringName = &"READY"

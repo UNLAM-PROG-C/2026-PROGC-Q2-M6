@@ -19,17 +19,19 @@ const HEALTH_TEXT_COLOR: Color = Color("#111111")
 const STUN_RING_RADIUS: float = 36.0
 const STUN_RING_SEGMENTS: int = 24
 const STUN_RING_WIDTH: float = 3.0
+const STUN_RING_START_ANGLE: float = 0.0
 const MIN_MAX_HEALTH: int = 1
+const NO_HEALTH: int = 0
 
 var enemy_type: StringName = &"DISCOUNT_CHILD"
-var health: int = 0
+var health: int = NO_HEALTH
 var max_health: int = MIN_MAX_HEALTH
 @onready var sprite: Sprite2D = $Sprite2D
 
 
 func set_state(payload: Dictionary, screen_position: Vector2) -> void:
 	enemy_type = StringName(payload.get("enemy_type", "DISCOUNT_CHILD"))
-	health = int(payload.get("health", 0))
+	health = int(payload.get("health", NO_HEALTH))
 	max_health = maxi(MIN_MAX_HEALTH, int(payload.get("max_health", health)))
 	position = screen_position
 	sprite.texture = TEXTURES.get(enemy_type)
@@ -61,5 +63,12 @@ func _draw_health_text() -> void:
 
 
 func _draw_stun_ring() -> void:
-	draw_arc(Vector2.ZERO, STUN_RING_RADIUS, 0.0, TAU, STUN_RING_SEGMENTS,
-		STUNNED_COLOR, STUN_RING_WIDTH)
+	draw_arc(
+		Vector2.ZERO,
+		STUN_RING_RADIUS,
+		STUN_RING_START_ANGLE,
+		TAU,
+		STUN_RING_SEGMENTS,
+		STUNNED_COLOR,
+		STUN_RING_WIDTH,
+	)

@@ -9,6 +9,7 @@ from typing import Any, Mapping
 
 FRAME_HEADER_SIZE = 4
 FRAME_HEADER_FORMAT = ">I"
+MIN_FRAME_SIZE = 1
 MAX_FRAME_SIZE = 1_048_576
 TEXT_ENCODING = "utf-8"
 
@@ -78,7 +79,7 @@ class ProtocolError(ValueError):
 
 
 def _validate_frame_size(size: int) -> None:
-  if size <= 0 or size > MAX_FRAME_SIZE:
+  if size < MIN_FRAME_SIZE or size > MAX_FRAME_SIZE:
     raise ProtocolError(f"Invalid frame size: {size}")
 
 

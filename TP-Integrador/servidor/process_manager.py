@@ -7,7 +7,11 @@ import sys
 from dataclasses import dataclass
 from typing import Any, Mapping
 
-from servidor.constants import EXEC_FAILURE_EXIT_CODE, WORKER_MODULE
+from servidor.constants import (
+  EXEC_FAILURE_EXIT_CODE,
+  EXIT_SUCCESS_CODE,
+  WORKER_MODULE,
+)
 from servidor.process_protocol import (
   CHILD_READY,
   SHUTDOWN,
@@ -18,6 +22,9 @@ from servidor.process_protocol import (
   validate_wave,
   write_process_message,
 )
+
+FORK_CHILD_RETURN_VALUE = 0
+WAITPID_BLOCKING_OPTIONS = 0
 
 
 @dataclass
@@ -84,7 +91,7 @@ def _fork_worker(
     child_write_fd: int,
 ) -> int:
   pid = os.fork()
-  if pid == 0:
+  if pid == FORK_CHILD_RETURN_VALUE:
     _close_fd(parent_write_fd)
     _close_fd(parent_read_fd)
     _exec_worker(child_read_fd, child_write_fd)
@@ -124,7 +131,7 @@ def _reap_failed_worker(pid: int | None) -> None:
   if pid is None:
     return
   try:
-    os.waitpid(pid, 0)
+    os.waitpid(pid, WAITPID_BLOCKING_OPTIONS)
   except ChildProcessError:
     pass
 
@@ -162,7 +169,7 @@ def send_stats_update(worker: ChildProcess, stats: Mapping[str, Any]) -> None:
 def _wait_for_worker(worker: ChildProcess) -> int:
   while True:
     try:
-      _, status = os.waitpid(worker.pid, 0)
+      _, status = os.waitpid(worker.pid, WAITPID_BLOCKING_OPTIONS)
       return status
     except InterruptedError:
       continue
@@ -186,5 +193,8 @@ def shutdown_worker(worker: ChildProcess) -> None:
 
 
 def _check_exit_status(status: int) -> None:
-  if not os.WIFEXITED(status) or os.WEXITSTATUS(status) != 0:
+  if (
+    not os.WIFEXITED(status)
+    or os.WEXITSTATUS(status) != EXIT_SUCCESS_CODE
+  ):
     raise ChildProcessError(f"Wave worker exited with status {status}")

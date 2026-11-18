@@ -9,6 +9,8 @@ from typing import Any
 
 from servidor.constants import (
   BASE_DAMAGE_PER_ENEMY,
+  BASE_DESTROYED_HP,
+  COUNTDOWN_DECREMENT,
   COUNTDOWN_GO_SECONDS,
   COUNTDOWN_GO_TEXT,
   COUNTDOWN_STEP_SECONDS,
@@ -16,6 +18,9 @@ from servidor.constants import (
   GAME_TICK_SECONDS,
   MAX_PLAYERS,
   MIN_PLAYERS,
+  NO_CLIENTS,
+  NO_CURRENT_WAVE,
+  NO_ENEMIES_DEFEATED,
   REJECTED_CLIENT_CLOSE_DELAY_SECONDS,
   SERVER_FULL_MESSAGE,
   THREAD_JOIN_TIMEOUT_SECONDS,
@@ -124,7 +129,7 @@ class GameLoop:
     self.start_requested = False
     self.first_tower_placed = False
     self.game_over_sent = False
-    self.enemies_defeated = 0
+    self.enemies_defeated = NO_ENEMIES_DEFEATED
 
   def start(self) -> None:
     """Start the game loop."""
@@ -282,7 +287,7 @@ class GameLoop:
     if not self.first_tower_placed:
       self.first_tower_placed = True
       self.ready_event.set()
-    if self.state.current_wave == 0 and not self.countdown_active:
+    if self.state.current_wave == NO_CURRENT_WAVE and not self.countdown_active:
       self._begin_first_wave_countdown()
     self._broadcast_state()
 
@@ -326,7 +331,7 @@ class GameLoop:
         "damage": BASE_DAMAGE_PER_ENEMY,
         "base_hp": base_hp,
       })
-      if base_hp <= 0:
+      if base_hp <= BASE_DESTROYED_HP:
         self._finish_game(RESULT_DEFEAT, REASON_BASE_DESTROYED)
         return
 
@@ -365,7 +370,7 @@ class GameLoop:
       self.clients.pop(client.player_id, None)
       if client.player_id == self.host_player_id:
         self.host_player_id = min(self.clients, default=None)
-      is_empty = len(self.clients) == 0
+      is_empty = len(self.clients) == NO_CLIENTS
     self.server.unregister(client)
     self.server.close_connection(client)
     if is_empty:
@@ -374,7 +379,7 @@ class GameLoop:
       self._broadcast_lobby_status()
 
   def _reset_to_lobby(self) -> None:
-    was_running = self.roster_locked or self.state.current_wave > 0
+    was_running = self.roster_locked or self.state.current_wave > NO_CURRENT_WAVE
     self.state.reset_match()
     self._clear_enemy_queue()
     self._clear_match_flags()
@@ -393,7 +398,7 @@ class GameLoop:
     self.wave_start_event.clear()
     self.countdown_active = False
     self.countdown_generation += 1
-    self.enemies_defeated = 0
+    self.enemies_defeated = NO_ENEMIES_DEFEATED
 
   def _clear_enemy_queue(self) -> None:
     while not self.enemy_queue.empty():
@@ -404,12 +409,12 @@ class GameLoop:
 
   def _add_client(self, client: ClientConnection) -> None:
     with self.server.clients_lock:
-      was_empty = len(self.clients) == 0
+      was_empty = len(self.clients) == NO_CLIENTS
       accepted = self._register_client(client)
     if not accepted:
       self._reject_client(client)
       return
-    if was_empty and (self.roster_locked or self.state.current_wave > 0):
+    if was_empty and (self.roster_locked or self.state.current_wave > NO_CURRENT_WAVE):
       self._reset_to_lobby()
     self._broadcast_lobby_status()
 
@@ -460,7 +465,11 @@ class GameLoop:
     ).start()
 
   def _run_first_wave_countdown(self, generation: int) -> None:
-    for seconds in range(FIRST_WAVE_COUNTDOWN_SECONDS, 0, -1):
+    for seconds in range(
+      FIRST_WAVE_COUNTDOWN_SECONDS,
+      COUNTDOWN_GO_SECONDS,
+      COUNTDOWN_DECREMENT,
+    ):
       if generation != self.countdown_generation:
         return
       self.server.broadcast(COUNTDOWN, {"seconds": seconds}, self.clients)

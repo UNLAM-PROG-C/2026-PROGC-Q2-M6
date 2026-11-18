@@ -7,13 +7,21 @@ from dataclasses import dataclass, field
 from typing import Callable
 
 from servidor.constants import (
+  BASE_DESTROYED_HP,
+  DEFEATED_ENEMY_HEALTH,
   ENEMY_EXIT_POSITION,
   ENEMY_STATS,
   ENEMY_SPEEDS,
+  FIRST_TOWER_ID,
   FIRST_TOWER_LEVEL,
   INITIAL_BASE_HP,
   INITIAL_GOLD,
   LANE_COUNT,
+  MIN_UPGRADE_COST,
+  NO_CURRENT_WAVE,
+  NO_DAMAGE,
+  NO_STUN_SECONDS,
+  NO_TOWER_ID,
   POSITION_DIMENSIONS,
   SELL_REFUND_DIVISOR,
   TOWER_STATS,
@@ -56,8 +64,11 @@ class Enemy:
 
   def advance(self, elapsed_seconds: float) -> None:
     """Move the enemy according to its configured speed."""
-    if self.stun_remaining > 0:
-      self.stun_remaining = max(0.0, self.stun_remaining - elapsed_seconds)
+    if self.stun_remaining > NO_STUN_SECONDS:
+      self.stun_remaining = max(
+        NO_STUN_SECONDS,
+        self.stun_remaining - elapsed_seconds,
+      )
       return
     speed_name = ENEMY_STATS[self.enemy_type]["speed"]
     speed = ENEMY_SPEEDS[speed_name]
@@ -78,7 +89,7 @@ class GameState:
 
   gold: int = INITIAL_GOLD
   base_hp: int = INITIAL_BASE_HP
-  current_wave: int = 0
+  current_wave: int = NO_CURRENT_WAVE
   towers: list[Tower] = field(default_factory=list)
   enemies: list[Enemy] = field(default_factory=list)
   last_attacks: list[dict] = field(default_factory=list, init=False, repr=False)
@@ -156,10 +167,10 @@ class GameState:
 
   def damage_base(self, damage: int) -> int:
     """Apply damage without losing concurrent updates and return HP left."""
-    if isinstance(damage, bool) or damage <= 0:
+    if isinstance(damage, bool) or damage <= NO_DAMAGE:
       raise ValueError(ERROR_INVALID_DAMAGE)
     with self.base_hp_lock:
-      self.base_hp = max(0, self.base_hp - damage)
+      self.base_hp = max(BASE_DESTROYED_HP, self.base_hp - damage)
       return self.base_hp
 
   def resolve_attacks(self, elapsed_seconds: float) -> list[int]:
@@ -190,7 +201,7 @@ class GameState:
       with self.base_hp_lock:
         self.gold = INITIAL_GOLD
         self.base_hp = INITIAL_BASE_HP
-        self.current_wave = 0
+        self.current_wave = NO_CURRENT_WAVE
         self.towers.clear()
         self.enemies.clear()
         self.last_attacks.clear()
@@ -221,7 +232,7 @@ class GameState:
 
   def _next_tower_id(self) -> int:
     tower_ids = [tower.tower_id for tower in self.towers]
-    return max(tower_ids, default=0) + 1
+    return max(tower_ids, default=NO_TOWER_ID) + FIRST_TOWER_ID
 
   def _position_occupied(
     self,
@@ -267,7 +278,7 @@ class GameState:
       "max_health": ENEMY_STATS[enemy.enemy_type]["health"],
       "lane": enemy.lane,
       "pos": list(enemy.position),
-      "stunned": enemy.stun_remaining > 0,
+      "stunned": enemy.stun_remaining > NO_STUN_SECONDS,
     }
 
   def _apply_attack_effects(self, effects: list) -> list[int]:
@@ -278,7 +289,7 @@ class GameState:
           continue
         enemy.health -= effect.damage
         enemy.stun_remaining = max(enemy.stun_remaining, effect.stun_seconds)
-        if enemy.health <= 0:
+        if enemy.health <= DEFEATED_ENEMY_HEALTH:
           enemy_id = enemy.enemy_id
           self.defeat_enemy(enemy_id)
           defeated.append(enemy_id)
@@ -287,7 +298,10 @@ class GameState:
 
 def _upgrade_cost(current_type: str, next_type: str) -> int:
   current_cost = TOWER_STATS[current_type]["cost"]
-  return max(0, TOWER_STATS[next_type]["cost"] - current_cost)
+  return max(
+    MIN_UPGRADE_COST,
+    TOWER_STATS[next_type]["cost"] - current_cost,
+  )
 
 
 def _is_valid_position(position: object) -> bool:
